@@ -17,7 +17,7 @@ FILENAME_TRACE     = os.path.join(PATH_TRACE, "sapmon.trc")
 TIME_FORMAT_LOG_ANALYTICS = "%a, %d %b %Y %H:%M:%S GMT"
 TIME_FORMAT_JSON          = "%Y-%m-%dT%H:%M:%S.%fZ"
 TIME_FORMAT_HANA          = "%Y-%m-%d %H:%M:%S.%f"
-TIME_FORMAT_SQL           = "%Y-%m-%d %H:%M:%S.%f"
+TIME_FORMAT_SQL           = "%Y-%m-%d %H:%M:%S.%f" 
 
 # Trace levels
 DEFAULT_CONSOLE_TRACE_LEVEL = logging.DEBUG

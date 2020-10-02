@@ -198,7 +198,7 @@ class MSSQLProviderCheck(ProviderCheck):
 
       # If time series, insert time condition
       lastRunServer = self.state.get("lastRunServer", None)
-
+     
       # TODO(tniek) - make WHERE conditions for time series queries more flexible
       if not lastRunServer:
          self.tracer.info("[%s] time series query has never been run, applying initalTimespanSecs=%d" % (self.fullName, initialTimespanSecs))
@@ -209,7 +209,7 @@ class MSSQLProviderCheck(ProviderCheck):
                                                                                                               str(lastRunServer)))
             return None
          try:
-            lastRunServerUtc = "CONVERT(DATETIME2,N'%s')" % lastRunServer.strftime(TIME_FORMAT_SQL)
+            lastRunServerUtc = "%s" % lastRunServer.strftime(TIME_FORMAT_SQL)
          except Exception as e:
             self.tracer.error("[%s] could not format lastRunServer=%s into SQL format (%s)" % (self.fullName,
                                                                                                str(lastRunServer),
@@ -217,8 +217,10 @@ class MSSQLProviderCheck(ProviderCheck):
             return None
          self.tracer.info("[%s] time series query has been run at %s, filter out only new records since then" % \
             (self.fullName, lastRunServerUtc))
-      self.tracer.debug("[%s] lastRunServerUtc=%s" % (self.fullName,
+         self.tracer.debug("[%s] lastRunServerUtc=%s" % (self.fullName,
                                                          lastRunServerUtc))
+         lastRunServerUtc = "CONVERT(DATETIME2,N'%s')" % lastRunServer
+         
       preparedSql = sql.replace("{lastRunServerUtc}", lastRunServerUtc, 1)
       self.tracer.debug("[%s] preparedSql=%s" % (self.fullName,
                                                  preparedSql))
@@ -297,9 +299,10 @@ class MSSQLProviderCheck(ProviderCheck):
       # Only store lastRunServer if we have it in the check result; consider time-series queries
       if len(resultRows) > 0:
          if COL_TIMESERIES_UTC in colIndex:
-            self.state["lastRunServer"] = resultRows[-1][colIndex[COL_TIMESERIES_UTC]]
+            self.state["lastRunServer"] = datetime.strftime(datetime.strptime(resultRows[-1][colIndex[COL_TIMESERIES_UTC]],"%Y-%m-%d %H:%M:%S"),"%Y-%m-%dT%H:%M:%S.000000Z")
          elif COL_SERVER_UTC in colIndex:
             self.state["lastRunServer"] = resultRows[0][colIndex[COL_SERVER_UTC]]
 
       self.tracer.info("[%s] internal state successfully updated" % self.fullName)
       return True
+
