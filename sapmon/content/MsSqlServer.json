@@ -254,7 +254,7 @@
 					"parameters": {
 						"isTimeSeries": true,
 						"initialTimespanSecs": 86400,
-						"sql": "select t.database_name as DBName,case t.type when N'D' then N'Full' when N'F' then N'File' when N'G' then N'Filegroup' when N'I' then N'Differential' when N'L' then N'Log' end as BackupType, convert(varchar(20),t.backup_finish_date,120) as BackupFinishDate, convert(varchar(20),t.backup_finish_date,120) as _TIMESERIES_UTC, h.logical_device_name as DeviceName, j.name as MediaSet, t.backup_set_id as BackupSetID, t.name as BackupSet, t.description as Description, convert(decimal(12,2),((t.backup_size/1024)/1024)) as BackupSize, convert(char(8),(t.backup_finish_date - t.backup_start_date),108) as BackupDuration from msdb..backupset t, msdb..backupmediafamily h, msdb..backupmediaset j where t.media_set_id = h.media_set_id and t.media_set_id = j.media_set_id and t.backup_finish_date > {lastRunServerUtc} order by _TIMESERIES_UTC asc;"
+						"sql": "select t.database_name as DBName,case t.type when N'D' then N'Full' when N'F' then N'File' when N'G' then N'Filegroup' when N'I' then N'Differential' when N'L' then N'Log' end as BackupType, convert(varchar(20),t.backup_finish_date,120) as BackupFinishDate, convert(varchar(20),t.backup_finish_date,120) as _TIMESERIES_UTC, h.logical_device_name as DeviceName, j.name as MediaSet, t.backup_set_id as BackupSetID, t.name as BackupSet, t.description as Description, convert(decimal(12,2),((t.backup_size/1024)/1024)) as BackupSize, convert(char(8),(t.backup_finish_date - t.backup_start_date),108) as BackupDuration,datediff(s,t.backup_start_date,t.backup_finish_date) as BackupDurationSec from msdb..backupset t, msdb..backupmediafamily h, msdb..backupmediaset j where t.media_set_id = h.media_set_id and t.media_set_id = j.media_set_id and t.backup_finish_date > {lastRunServerUtc} order by _TIMESERIES_UTC asc;"
 					}
 				}
 			]
@@ -269,7 +269,7 @@
 	      {
           "type": "ExecuteSql",
           "parameters": {
-                  "sql": "select 'blocked' as type,spid,kpid,blocked,cmd,waittime,lastwaittype,waitresource,dbid,uid,cpu,physical_io,memusage,login_time,last_batch,ecid,open_tran,status,hostname,program_name,hostprocess,sql_handle, GETUTCDATE() as _SERVER_UTC from sys.sysprocesses where (blocked != 0 and blocked != spid) union all select 'BLOCKER',spid,kpid,blocked,cmd,waittime,lastwaittype,waitresource,dbid,uid,cpu,physical_io,memusage,login_time,last_batch,ecid,open_tran,status, hostname,program_name,hostprocess,sql_handle, GETUTCDATE() from sys.sysprocesses  where (spid in (select distinct blocked from sys.sysprocesses where blocked != 0 and blocked != spid) and blocked != spid)"
+                  "sql": "select 'blocked' as type,spid,kpid,blocked,cmd,waittime,lastwaittype,waitresource,dbid,uid,cpu,physical_io,memusage,login_time,last_batch,ecid,open_tran,status,hostname,program_name,hostprocess, GETUTCDATE() as _SERVER_UTC from sys.sysprocesses where (blocked != 0 and blocked != spid) union all select 'BLOCKER',spid,kpid,blocked,cmd,waittime,lastwaittype,waitresource,dbid,uid,cpu,physical_io,memusage,login_time,last_batch,ecid,open_tran,status,hostname,program_name,hostprocess, GETUTCDATE() from sys.sysprocesses  where (spid in (select distinct blocked from sys.sysprocesses where blocked != 0 and blocked != spid) and blocked != spid)"
           }
 	      }
       ]
