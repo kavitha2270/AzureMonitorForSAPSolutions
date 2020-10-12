@@ -71,7 +71,7 @@ class SAPNWMonProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapPassword cannot be empty" % self.fullName)
             return False
 
-        return true
+        return True
 
     def validate(self) -> bool:
         self.tracer.info("connecting to sap with host name (%s) to test required rfc calls.")
