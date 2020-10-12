@@ -5,6 +5,7 @@ RUN apt-get update -y
 RUN apt-get install curl gnupg -y
 
 # setup nwrfcsdk.
+RUN mkdir /usr/local/sap
 RUN mkdir /usr/local/sap/nwrfcsdk
 
 # Note: -k/--insecure cannot be used with curl; security compliance requires we verify certs
