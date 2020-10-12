@@ -10,7 +10,7 @@ RUN mkdir /usr/local/sap/nwrfcsdk
 ADD nwrfcsdk /usr/local/sap/nwrfcsdk
 ENV SAPNWRFC_HOME=/usr/local/sap/nwrfcsdk
 RUN echo "/usr/local/sap/nwrfcsdk/lib" > /etc/ld.so.conf.d/nwrfcsdk.conf
-RUN cat /etc/ld.so.conf.d/nwrfcsdk.conf
+RUN ldconfig -p | grep sap
 
 # Note: -k/--insecure cannot be used with curl; security compliance requires we verify certs
 # RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
