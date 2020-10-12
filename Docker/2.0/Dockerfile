@@ -4,6 +4,9 @@ FROM python:3.7-slim
 RUN apt-get update -y
 RUN apt-get install curl gnupg -y
 
+# setup nwrfcsdk.
+RUN mkdir /usr/local/sap/nwrfcsdk
+
 # Note: -k/--insecure cannot be used with curl; security compliance requires we verify certs
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 RUN curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list
@@ -16,7 +19,6 @@ RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-s
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/sapmon
 RUN git clone https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
-RUN ls -l
 RUN cp -a AzureMonitorForSAPSolutions/* /var/opt/microsoft/sapmon
 ADD monitorapp.sh /var/opt/microsoft/sapmon/monitorapp.sh
 CMD []
