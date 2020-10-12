@@ -15,8 +15,7 @@ RUN pip3 install --upgrade pip
 RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-storage azure-keyvault-secrets azure-identity prometheus_client retry pyodbc
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/sapmon
-# RUN git clone https://github.com/Azure/AzureMonitorForSAPSolutions.git --branch ${RELEASE} ${RELEASE}
-COPY ~/AzureMonitorForSAPSolutions/sapmon /var/opt/microsoft/sapmon
-# RUN cp -a sapmon /var/opt/microsoft/sapmon
+RUN git clone https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
+RUN cp -a sapmon /var/opt/microsoft/sapmon
 ADD monitorapp.sh /var/opt/microsoft/sapmon/monitorapp.sh
 CMD []
