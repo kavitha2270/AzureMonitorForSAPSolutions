@@ -16,6 +16,7 @@ RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-s
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/sapmon
 # RUN git clone https://github.com/Azure/AzureMonitorForSAPSolutions.git --branch ${RELEASE} ${RELEASE}
+RUN mkdir sapmon
 COPY sapmon sapmon
 RUN cp -a sapmon /var/opt/microsoft/sapmon
 ADD monitorapp.sh /var/opt/microsoft/sapmon/monitorapp.sh
