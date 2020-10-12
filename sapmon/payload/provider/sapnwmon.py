@@ -29,6 +29,12 @@ class SAPNWMonProviderInstance(ProviderInstance):
         self.sapUsername = None
         self.sapPassword = None
 
+        retrySettings = {
+         "retries": 3,
+         "delayInSeconds": 1,
+         "backoffMultiplier": 2
+        }
+
         super().__init__(tracer,
                        ctx,
                        providerInstance,
