@@ -7,19 +7,21 @@ RUN apt-get install curl gnupg -y
 # setup nwrfcsdk.
 RUN mkdir /usr/local/sap
 RUN mkdir /usr/local/sap/nwrfcsdk
+ADD nwrfcsdk /usr/local/sap/nwrfcsdk
+ENV SAPNWRFC_HOME=/usr/local/sap/nwrfcsdk
 
 # Note: -k/--insecure cannot be used with curl; security compliance requires we verify certs
-RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-RUN curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list
-RUN apt-get update -y
-RUN apt-get upgrade -y
-RUN apt-get install git -y
-RUN apt-get install git gcc libffi-dev g++ unixodbc-dev -y
-RUN pip3 install --upgrade pip
-RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-storage azure-keyvault-secrets azure-identity prometheus_client retry pyodbc
-RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
-RUN mkdir -p /var/opt/microsoft/sapmon
-RUN git clone https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
-RUN cp -a AzureMonitorForSAPSolutions/* /var/opt/microsoft/sapmon
-ADD monitorapp.sh /var/opt/microsoft/sapmon/monitorapp.sh
-CMD []
+# RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+# RUN curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list
+# RUN apt-get update -y
+# RUN apt-get upgrade -y
+# RUN apt-get install git -y
+# RUN apt-get install git gcc libffi-dev g++ unixodbc-dev -y
+# RUN pip3 install --upgrade pip
+# RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-storage azure-keyvault-secrets azure-identity prometheus_client retry pyodbc
+# RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
+# RUN mkdir -p /var/opt/microsoft/sapmon
+# RUN git clone https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
+# RUN cp -a AzureMonitorForSAPSolutions/* /var/opt/microsoft/sapmon
+# ADD monitorapp.sh /var/opt/microsoft/sapmon/monitorapp.sh
+# CMD []
