@@ -23,11 +23,11 @@ class SAPNWMonProviderInstance(ProviderInstance):
                 providerInstance: Dict[str, str],
                 skipContent: bool = False,
                 **kwargs):
-        self.sapHostName -> str = None
-        self.sapSysNr -> str = None
-        self.sapClient -> str = None
-        self.sapUsername -> str = None
-        self.sapPassword -> str = None
+        self.sapHostName = None
+        self.sapSysNr = None
+        self.sapClient = None
+        self.sapUsername = None
+        self.sapPassword = None
 
         super().__init__(tracer,
                        ctx,

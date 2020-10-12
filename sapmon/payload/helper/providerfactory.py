@@ -24,6 +24,7 @@ class ProviderFactory(object):
                             ctx: Context,
                             instanceProperties: Dict[str, str],
                             **kwargs) -> ProviderInstance:
+      tracer.debug("adding provider type %s", % providerType)
       if providerType in availableProviders:
          providerClass = availableProviders[providerType][0]
          return providerClass(tracer,
