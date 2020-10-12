@@ -5,6 +5,7 @@ from helper.context import *
 from provider.saphana import *
 from provider.prometheus import *
 from provider.sqlserver import *
+from provider.sapnwmon import *
 
 availableProviders = {
                         "SapHana": (saphanaProviderInstance, saphanaProviderCheck),
