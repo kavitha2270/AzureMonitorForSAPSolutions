@@ -86,9 +86,9 @@ class SAPNWMonProviderInstance(ProviderInstance):
         # call all required rfc to test if provided SAP user has access.
         try:
             result = connection.call('RFCPING')
-            print(result)
+            self.tracer.info("successfully called RFC ping with provided credentials. %s" % (result))
         except Exception as e:
-            self.tracer.error("Could not call RFCPING for hostname %s " % (hostname))
+            self.tracer.error("Could not call RFCPING for hostname %s " % (self.sapHostName))
 
 ###########################
 
