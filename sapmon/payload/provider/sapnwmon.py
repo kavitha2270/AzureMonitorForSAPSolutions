@@ -90,6 +90,8 @@ class SAPNWMonProviderInstance(ProviderInstance):
         except Exception as e:
             self.tracer.error("Could not call RFCPING for hostname %s " % (self.sapHostName))
 
+        return True
+
 ###########################
 
 # implement sapnwmon check.
