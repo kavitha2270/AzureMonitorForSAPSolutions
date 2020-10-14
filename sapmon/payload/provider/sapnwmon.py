@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 
 # Payload modules
 from const import *
@@ -14,7 +15,7 @@ from provider.base import ProviderInstance, ProviderCheck
 from typing import Dict, List
 
 # SAP modules.
-from pyrfc import Connection
+from pyrfc import Connection, ABAPApplicationError, ABAPRuntimeError, LogonError, CommunicationError
 
 class SAPNWMonProviderInstance(ProviderInstance):
     def __init__(self,
@@ -77,21 +78,90 @@ class SAPNWMonProviderInstance(ProviderInstance):
         self.tracer.info("connecting to sap with host name (%s) to test required rfc calls.")
 
         # establish connection to SAP using provided credentials.
+        # TODO: log times required for calls.
         try:
-            connection =  Connection(ashost=self.sapHostName, sysnr=self.sapSysNr, client=self.sapClient, user=self.sapUsername, passwd=self.sapPassword)
-        except Exception as e:
-            self.tracer.error("Could not establish connection to %s with hostname %s (%s)" % (self.fullName, self.sapHostName, e))
-            return False
+            with self._establish_connection_to_sap() as connection:
+                # test call RFCPING.
+                _ = connection.call('RFCPING')
+                self.tracer.debug("successfully called RFC ping.")
 
-        # call all required rfc to test if provided SAP user has access.
-        try:
-            result = connection.call('RFCPING')
-            self.tracer.info("successfully called RFC ping with provided credentials. %s" % (result))
+                smon_result = self._call_sdf_get_smon_runs(connection)
+                guid = self._process_guid_using_smon_runs(smon_result)
+                self.tracer.debug("successfully called RFC ping.")
+
+                smon_analysis_result = self._call_sdf_smon_analysis_read(connection, guid, datetime.now(), 0)
+                if smon_analysis_result is None:
+                    return False
         except Exception as e:
-            self.tracer.error("Could not call RFCPING for hostname %s " % (self.sapHostName))
+            self.tracer.error("Error occured while validating %s " % (e))
+            return False
 
         return True
 
-###########################
+    # establish connection to sap.
+    def _establish_connection_to_sap(self) -> Connection:
+        try:
+            connection = Connection(ashost=self.sapHostName, sysnr=self.sapSysNr, client=self.sapClient, user=self.sapUsername, passwd=self.sapPassword)
+        except CommunicationError as e:
+            self.tracer.error("Cannot establish connection with (%s) with hostname: %s " % (self.fullName, self.sapHostName))
+        except LogonError as e:
+            self.tracer.error("Credentials used to connect with hostname: %s with username: %s" % (self.fullName, self.sapUsername))
+        except Exception as e:
+            self.tracer.error("Error occured while establishing connection (%s) " % (e))
 
+        return connection
+
+    def _call_sdf_get_smon_runs(self, connection: Connection):
+        from_date = datetime(1971, 5, 20)
+        to_date = datetime(2999, 12, 31)
+        try:
+            smon_result = connection.call('/SDF/SMON_GET_SMON_RUNS', FROM_DATE=from_date, TO_DATE=to_date)
+        except CommunicationError as e:
+            self.tracer.error("Cannot establish connection with (%s) with hostname: %s " % (self.fullName, self.sapHostName))
+            return None
+        except Exception as e:
+            self.tracer.error("Error occured while establishing connection (%s) " % (e))
+            return None
+
+        return smon_result
+
+    # parse result from /SDF/SMON_GET_SMON_RUNS and return GUID.
+    def _process_guid_using_smon_runs(self, result):
+        if 'SMON_RUNS' in result:
+            if 'GUID' in result['SMON_RUNS']:
+                return result['SMON_RUNS']['GUID']
+            else:
+                raise ValueError("GUID value does not exist in /SDF/SMON_GET_SMON_RUNS return result.")
+        else:
+            raise ValueError("SMON_RUNS value does not exist in /SDF/SMON_GET_SMON_RUNS return result.")
+
+    # TODO: edge case scenario related to datetime calculation.
+    def _call_sdf_smon_analysis_read(self, connection: Connection,  guid: str, lastRunTime: datetime, frequency: int):
+        # calculate next run time.
+        nextRunTime = lastRunTime + datetime.timedelta(seconds=frequency)
+
+        # RFC parameters.
+        datum = nextRunTime.date()
+        startTime = lastRunTime.time()
+        endTime = nextRunTime.time()
+
+        result = connection.call('/SDF/SMON_ANALYSIS_READ', GUID=guid, DATUM=datum, START_TIME=startTime, END_TIME=endTime)
+
+        return result
+
+###########################
 # implement sapnwmon check.
+class SAPNWMonProviderCheck(ProviderCheck):
+
+    def __init__(self,
+    provider: ProviderInstance,
+    **kwargs
+    ):
+        super.__init__(provider, **kwargs)
+
+    def generateJsonString(self) -> str:
+        return None
+
+    def updateState(self):
+        return
+
