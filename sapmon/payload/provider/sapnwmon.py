@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Payload modules
 from const import *
@@ -141,7 +141,7 @@ class SAPNWMonProviderInstance(ProviderInstance):
     # TODO: edge case scenario related to datetime calculation.
     def _call_sdf_smon_analysis_read(self, connection: Connection,  guid: str, lastRunTime: datetime, frequency: int):
         # calculate next run time.
-        nextRunTime = lastRunTime + datetime.timedelta(seconds=frequency)
+        nextRunTime = lastRunTime + timedelta(seconds=frequency)
 
         # RFC parameters.
         datum = nextRunTime.date()
