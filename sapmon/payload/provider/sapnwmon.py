@@ -132,7 +132,7 @@ class SAPNWMonProviderInstance(ProviderInstance):
     def _process_guid_using_smon_runs(self, result):
         if 'SMON_RUNS' in result:
             if 'GUID' in result['SMON_RUNS']:
-                return result['SMON_RUNS']['GUID']
+                return result['SMON_RUNS'][0]['GUID']
             else:
                 raise ValueError("GUID value does not exist in /SDF/SMON_GET_SMON_RUNS return result.")
         else:
