@@ -153,7 +153,14 @@ class SAPNWMonProviderInstance(ProviderInstance):
         startTime = lastRunTime.time()
         endTime = nextRunTime.time()
 
-        result = connection.call('/SDF/SMON_ANALYSIS_READ', GUID=guid, DATUM=datum, START_TIME=startTime, END_TIME=endTime)
+        try:
+            result = connection.call('/SDF/SMON_ANALYSIS_READ', GUID=guid, DATUM=datum, START_TIME=startTime, END_TIME=endTime)
+        except CommunicationError as e:
+            self.tracer.error("Cannot establish connection with (%s) with hostname: %s " % (self.fullName, self.sapHostName))
+            return None
+        except Exception as e:
+            self.tracer.error("Error occured while establishing connection (%s) " % (e))
+            return None
 
         return result
 
