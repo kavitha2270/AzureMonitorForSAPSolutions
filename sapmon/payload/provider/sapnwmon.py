@@ -83,11 +83,11 @@ class SAPNWMonProviderInstance(ProviderInstance):
             with self._establish_connection_to_sap() as connection:
                 # test call RFCPING.
                 _ = connection.call('RFCPING')
-                self.tracer.debug("successfully called RFC ping.")
+                self.tracer.info("successfully called RFC ping.")
 
                 smon_result = self._call_sdf_get_smon_runs(connection)
                 guid = self._process_guid_using_smon_runs(smon_result)
-                self.tracer.debug("successfully called RFC ping.")
+                self.tracer.info("successfully retrieved GUID from /SDF/GET_SMON_RUNS.")
 
                 smon_analysis_result = self._call_sdf_smon_analysis_read(connection, guid, datetime.now(), 0)
                 if smon_analysis_result is None:
@@ -104,16 +104,19 @@ class SAPNWMonProviderInstance(ProviderInstance):
             connection = Connection(ashost=self.sapHostName, sysnr=self.sapSysNr, client=self.sapClient, user=self.sapUsername, passwd=self.sapPassword)
         except CommunicationError as e:
             self.tracer.error("Cannot establish connection with (%s) with hostname: %s " % (self.fullName, self.sapHostName))
+            return None
         except LogonError as e:
             self.tracer.error("Credentials used to connect with hostname: %s with username: %s" % (self.fullName, self.sapUsername))
+            return None
         except Exception as e:
             self.tracer.error("Error occured while establishing connection (%s) " % (e))
+            return None
 
         return connection
 
     def _call_sdf_get_smon_runs(self, connection: Connection):
-        from_date = datetime(1971, 5, 20)
-        to_date = datetime(2999, 12, 31)
+        from_date = datetime(1971, 5, 20).date()
+        to_date = datetime(2999, 12, 31).date()
         try:
             smon_result = connection.call('/SDF/SMON_GET_SMON_RUNS', FROM_DATE=from_date, TO_DATE=to_date)
         except CommunicationError as e:
