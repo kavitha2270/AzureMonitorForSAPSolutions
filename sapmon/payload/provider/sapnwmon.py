@@ -81,11 +81,16 @@ class SAPNWMonProviderInstance(ProviderInstance):
         # TODO: log times required for calls.
         try:
             with self._establish_connection_to_sap() as connection:
+                if connection is None:
+                    return False
+
                 # test call RFCPING.
-                _ = connection.call('RFCPING')
+                connection.call('RFCPING')
                 self.tracer.info("successfully called RFC ping.")
 
                 smon_result = self._call_sdf_get_smon_runs(connection)
+                if smon_result is None:
+                    return False
                 guid = self._process_guid_using_smon_runs(smon_result)
                 self.tracer.info("successfully retrieved GUID from /SDF/GET_SMON_RUNS.")
 
@@ -106,7 +111,7 @@ class SAPNWMonProviderInstance(ProviderInstance):
             self.tracer.error("Cannot establish connection with (%s) with hostname: %s " % (self.fullName, self.sapHostName))
             return None
         except LogonError as e:
-            self.tracer.error("Credentials used to connect with hostname: %s with username: %s" % (self.fullName, self.sapUsername))
+            self.tracer.error("Incorrect credentials used to connect with hostname: %s username: %s" % (self.fullName, self.sapUsername))
             return None
         except Exception as e:
             self.tracer.error("Error occured while establishing connection (%s) " % (e))

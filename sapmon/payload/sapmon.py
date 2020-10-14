@@ -142,7 +142,6 @@ def addProvider(args: str = None,
 
    try:
       # TODO: validate metadata
-      tracer.info("args properties %s " % (args.properties))
       instanceProperties = {"name": args.name,
                             "type": args.type,
                             "properties": json.loads(args.properties),
