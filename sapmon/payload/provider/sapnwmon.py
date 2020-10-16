@@ -97,6 +97,8 @@ class SAPNWMonProviderInstance(ProviderInstance):
                 smon_analysis_result = self._call_sdf_smon_analysis_read(connection, guid, datetime.now(), 0)
                 if smon_analysis_result is None:
                     return False
+                # TODO: valiate if SDF/SMON result contains data.
+                self.tracer.info("successfully retrieved GUID from /SDF/SMON_ANALYSIS_READ.")
         except Exception as e:
             self.tracer.error("Error occured while validating %s " % (e))
             return False
@@ -163,6 +165,29 @@ class SAPNWMonProviderInstance(ProviderInstance):
             return None
 
         return result
+
+    # process /SDF/SMON_ANALYSIS_READ result. From header table, fetch all values for keys in extract column list.
+    def _process_sdf_smon_analysis_read_header(self, result, extractColumnList: List[str] = None) -> List[Dict[str, str]]:
+        # TODO: parse /SDF/SMON_ANALYSIS_READ result.
+        return result['HEADER']
+        # processed_result = None
+
+        # if 'HEADER' in result:
+        #     if extractColumnList is None:
+        #         processed_result = result['HEADER']
+        #     else:
+        #         processed_result = list()
+        #         header_rows: List[Dict[str, str]] = result['HEADER']
+        #         for row in header_rows:
+        #             row_result = dict()
+        #             for columnName in extractColumnList:
+        #                 if columnName in row:
+        #                     row_result[columnName] = row[columnName]
+        #                 else:
+        #                     self.tracer.error("Column Name %s does not exist in /SDF/SMON_ANALYSIS_READ" % (columnName))
+        #             processed_result.append(row_result)
+        # else:
+        #     raise ValueError("/SDF/SMON_ANALYSIS_READ result does not have HEADER table.")
 
 ###########################
 # implement sapnwmon check.
