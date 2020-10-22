@@ -230,8 +230,8 @@ class SAPNWMonProviderInstance(ProviderInstance):
 ###########################
 # implement sapnwmon check.
 class SAPNWMonProviderCheck(ProviderCheck):
-    lastResult = None
-    lastSAPRunTime = None
+    lastResult = list()
+    lastRunTimeSDFSMON = None
 
     def __init__(self,
     provider: ProviderInstance,
@@ -256,11 +256,13 @@ class SAPNWMonProviderCheck(ProviderCheck):
             # based on last run and current time, calculate start and end time.
             startDate, startTime, endTime = self.getNextRunTime(currentDate, currentTime, lastRunTime)
             smon_analysis_result = self.providerInstance._call_sdf_smon_analysis_read(connection, guid, startDate, startTime, currentTime)
-            self.tracer.info("executed RFC SDF/SMON_ANALYSIS_READ with date (%s) start time: %s to end time %s" % (startDate, startTime, endTime))
+            self.tracer.info("executed RFC SDF/SMON_ANALYSIS_READ with date: %s start time: %s to end time %s" % (startDate, startTime, endTime))
             smon_result = self.providerInstance._process_sdf_smon_analysis_read(smon_analysis_result, columnList)
 
-            self.lastResult = smon_result
-            self.lastSAPRunTime = datetime.combine(startDate, endTime)
+            # only add to list, if results exist.
+            if len(smon_result) != 0:
+                self.lastResult.extend(smon_result)
+            self.lastRunTimeSDFSMON = datetime.combine(startDate, endTime)
 
         # Update internal state
         if not self.updateState():
@@ -291,7 +293,6 @@ class SAPNWMonProviderCheck(ProviderCheck):
                 endDateTime = datetime.combine(startDateTime.date(), time(23, 59, 59))
             return startDateTime.date(), startDateTime.time(), endDateTime.time()
 
-    # TODO: sync with jasneet. combine RFC results.
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting rfc result to json string." % self.fullName)
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
@@ -306,7 +307,7 @@ class SAPNWMonProviderCheck(ProviderCheck):
         lastRunLocal = datetime.utcnow()
         self.state['lastRunLocal'] = lastRunLocal
         # update last run server.
-        self.state['lastRunServer'] = self.lastSAPRunTime
+        self.state['lastRunServer'] = self.lastRunTimeSDFSMON
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
 
