@@ -77,7 +77,6 @@ class SAPNWMonProviderInstance(ProviderInstance):
     def validate(self) -> bool:
         self.tracer.info("connecting to sap with host name (%s) to test required rfc calls.")
 
-        # establish connection to SAP using provided credentials.
         # TODO: log times required for calls.
         try:
             with self._establish_connection_to_sap() as connection:
@@ -101,16 +100,11 @@ class SAPNWMonProviderInstance(ProviderInstance):
                 guid = self._process_guid_using_smon_runs(smon_result)
                 self.tracer.info("successfully retrieved GUID from /SDF/GET_SMON_RUNS.")
 
-                # TODO: if smon analysis does not returns results raise error.
                 # test if sdf/smon_analysis_run returns result for last minute.
                 startTime = (datetime.combine(date(year=1, month=1, day=1), currentTime) - timedelta(minutes=1)).time()
-                # for test
-                currentDate = date(2020, 10, 22)
-                startTime = time(0, 1)
-                currentTime = time(23, 59)
-                ##
                 smon_analysis_result = self._call_sdf_smon_analysis_read(connection, guid, currentDate, startTime, currentTime)
                 if smon_analysis_result is None:
+                    self.tracer.error("RFC SDF/SMON_ANALYSIS_READ result did not return values. Check RFC setup.")
                     return False
                 processedResult = self._process_sdf_smon_analysis_read(smon_analysis_result)
                 if len(processedResult) == 0:
@@ -220,8 +214,14 @@ class SAPNWMonProviderInstance(ProviderInstance):
         if 'HEADER' in result:
             # create new dictionary with only values from filterList if filter dictionary exists.
             processedResult = result['HEADER']
+            self.tracer.info("Number of records in SDF/SMON_Analysis_Read: %s" % (len(processedResult)))
+            # for each item in the list, create a new dictionary.
             if filterList:
-                processedResult = { columnName: processedResult[columnName] for columnName in filterList }
+                filteredResult = list()
+                for record in processedResult:
+                    filteredRow = { columnName: record[columnName] for columnName in filterList }
+                    filteredResult.append(filteredRow)
+                processedResult = filteredResult
         else:
             raise ValueError("SDF/SMON_ANALYSIS_READ result does not contain HEADER key.")
 
@@ -230,16 +230,83 @@ class SAPNWMonProviderInstance(ProviderInstance):
 ###########################
 # implement sapnwmon check.
 class SAPNWMonProviderCheck(ProviderCheck):
+    lastResult = None
+    lastSAPRunTime = None
 
     def __init__(self,
     provider: ProviderInstance,
     **kwargs
     ):
-        super.__init__(provider, **kwargs)
+        return super().__init__(provider, **kwargs)
 
+    def _actionExecuteSDFSMON(self, columnList: List[str]):
+        self.tracer.info("executing RFC SDF/SMON_ANALYSIS_RUN check")
+        with self.providerInstance._establish_connection_to_sap() as connection:
+            # get last run sap time.
+            lastRunTime = self.state.get('lastRunServer', None)
+
+            # read current time from SAP NetWeaver.
+            timestampResult = self.providerInstance._call_bdl_get_central_timestamp(connection)
+            currentDate, currentTime = self.providerInstance._process_bdl_get_central_timestamp_result(timestampResult)
+
+            # get guid to call RFC SDF/SMON_ANALYSIS_READ.
+            guidResult = self.providerInstance._call_sdf_get_smon_runs(connection, currentDate, currentDate)
+            guid = self.providerInstance._process_guid_using_smon_runs(guidResult)
+
+            # based on last run and current time, calculate start and end time.
+            startDate, startTime, endTime = self.getNextRunTime(currentDate, currentTime, lastRunTime)
+            smon_analysis_result = self.providerInstance._call_sdf_smon_analysis_read(connection, guid, startDate, startTime, currentTime)
+            self.tracer.info("executed RFC SDF/SMON_ANALYSIS_READ with date (%s) start time: %s to end time %s" % (startDate, startTime, endTime))
+            smon_result = self.providerInstance._process_sdf_smon_analysis_read(smon_analysis_result, columnList)
+
+            self.lastResult = smon_result
+            self.lastSAPRunTime = datetime.combine(startDate, endTime)
+
+        # Update internal state
+        if not self.updateState():
+            raise Exception("Failed to update state")
+        self.tracer.info("successfully processed RFC SDF/SMON_ANALYSIS_READ result.")
+
+    def getNextRunTime(self, currentDate: date, currentTime: time, lastRunTime: datetime):
+        if lastRunTime is None:
+            startDate = currentDate
+            endTime = currentTime
+            
+            # set start time to current time minus frequency.
+            startTime = None
+            endTimeSeconds = (endTime.hour * 3600) + (endTime.minute * 60) + endTime.second
+            if endTimeSeconds < self.frequencySecs:
+                startTime = time(0, 0, 0)
+            else:
+                startTime = (datetime.combine(date(year=1, month=1, day=1), currentTime) - timedelta(seconds=self.frequencySecs)).time()
+            
+            return startDate, startTime, endTime
+        else:
+            # next start time is 1 sec after last server run time.
+            startDateTime = lastRunTime + timedelta(seconds=1)
+            endDateTime = datetime.combine(currentDate, currentTime)
+
+            # if end date is moved to the next day, change end date to end on current date.
+            if startDateTime.day != endDateTime.day:
+                endDateTime = datetime.combine(startDateTime.date(), time(23, 59, 59))
+            return startDateTime.date(), startDateTime.time(), endDateTime.time()
+
+    # TODO: sync with jasneet. combine RFC results.
     def generateJsonString(self) -> str:
-        return None
+        self.tracer.info("[%s] converting rfc result to json string." % self.fullName)
+        resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
+        self.tracer.debug("[%s] resultJson=%s" % (self.fullName,
+                                                   str(resultJsonString)))
+        return resultJsonString
 
     def updateState(self):
-        return
+        self.tracer.info("[%s] updating internal state" % self.fullName)
+
+        # update last run local.
+        lastRunLocal = datetime.utcnow()
+        self.state['lastRunLocal'] = lastRunLocal
+        # update last run server.
+        self.state['lastRunServer'] = self.lastSAPRunTime
+        self.tracer.info("[%s] internal state successfully updated" % self.fullName)
+        return True
 

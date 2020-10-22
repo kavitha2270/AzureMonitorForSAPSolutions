@@ -1,0 +1,52 @@
+{
+	"checks": [
+		{
+			"name": "SDFSMON",
+			"description": "RFC Call SDK SMON Analysis Read",
+			"customLog": "SapNetWeaver_SDF_SMON_Analysis_Run",
+			"frequencySecs": 60,
+			"includeInCustomerAnalytics": false,
+			"actions": [
+				{
+					"type": "ExecuteSDFSMON",
+					"parameters": {
+						"columnList": [
+							"ACT_WPS",
+							"ACT_DIA",
+							"TRFC_FREE",
+							"USR_TOTAL",
+							"SYS_TOTAL",
+							"IDLE_TOTAL",
+							"CPU_CONS",
+							"AVAILCPUS",
+							"READY_TIME",
+							"STEAL_TIME",
+							"PAGE_IN_PERC",
+							"PAGE_OUT_PERC",
+							"FREE_MEM_PERC",
+							"EMALLOC",
+							"EMATTACH",
+							"HEAPSUMKB",
+							"PRIVWPNO",
+							"DIAQ",
+							"DIAAVG20",
+							"DIAAVG60",
+							"UPDQ",
+							"ENQQ",
+							"SM12_CNT",
+							"QINLENGTH",
+							"QOUTLENGTH",
+							"USERS",
+							"SESSIONS",
+							"DELTATIMEMS",
+							"FREE_MEM_MB",
+							"FREE_MEM_MB_INC_FS",
+							"DATUM",
+							"TIME"
+						]
+					}
+				}
+			]
+		}
+	]
+}

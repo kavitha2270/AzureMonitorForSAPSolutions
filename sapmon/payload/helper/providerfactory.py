@@ -14,7 +14,7 @@ availableProviders = {
                         "PrometheusHaCluster": (prometheusProviderInstance, prometheusProviderCheck),
                         "PrometheusNode": (prometheusProviderInstance, prometheusProviderCheck),
                         "PrometheusOS": (prometheusProviderInstance, prometheusProviderCheck),
-                        "SapNetWeaver": (SAPNWMonProviderInstance, None)
+                        "SapNetWeaver": (SAPNWMonProviderInstance, SAPNWMonProviderCheck)
                      }
 
 class ProviderFactory(object):
