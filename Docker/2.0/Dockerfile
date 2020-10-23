@@ -22,7 +22,6 @@ RUN pip3 install --upgrade pip
 RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-storage azure-keyvault-secrets azure-identity prometheus_client retry pyodbc pynwrfc msrestazure
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/AzureMonitorForSAPSolutions
-RUN git clone https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
+RUN git clone --single-branch --branch ropatil/netweaver-check https://github.com/rohPatil/AzureMonitorForSAPSolutions.git
 RUN cp -a AzureMonitorForSAPSolutions/* /var/opt/microsoft/AzureMonitorForSAPSolutions
-ADD monitorapp.sh /var/opt/microsoft/AzureMonitorForSAPSolutions/monitorapp.sh
 CMD []
