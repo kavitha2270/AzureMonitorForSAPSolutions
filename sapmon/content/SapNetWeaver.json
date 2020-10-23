@@ -42,7 +42,8 @@
 							"FREE_MEM_MB",
 							"FREE_MEM_MB_INC_FS",
 							"DATUM",
-							"TIME"
+							"TIME",
+							"GUID"
 						]
 					}
 				}
