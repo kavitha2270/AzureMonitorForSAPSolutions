@@ -97,8 +97,8 @@ class SAPNWMonProviderInstance(ProviderInstance):
                 smon_result = self._call_sdf_get_smon_runs(connection, currentDate, currentDate)
                 if smon_result is None:
                     return False
-                guid = self._process_guid_using_smon_runs(smon_result)
-                self.tracer.info("successfully retrieved GUID from /SDF/GET_SMON_RUNS.")
+                guid = self._get_smon_run_result(smon_result)
+                self.tracer.info("successfully retrieved GUID from /SDF/GET_SMON_RUNS: %s" %(guid))
 
                 # test if sdf/smon_analysis_run returns result for last minute.
                 startTime = (datetime.combine(date(year=1, month=1, day=1), currentTime) - timedelta(minutes=1)).time()
@@ -115,6 +115,12 @@ class SAPNWMonProviderInstance(ProviderInstance):
             return False
 
         return True
+
+    def getFormattedDate(self, dateString: str) -> date:
+        return datetime.strptime(dateString, '%Y%m%d').date()
+
+    def getFormattedTIme(self, timeString: str) -> date:
+        return datetime.strptime(timeString, '%H%M%S').time()
 
     # establish connection to sap.
     def _establish_connection_to_sap(self) -> Connection:
@@ -164,12 +170,7 @@ class SAPNWMonProviderInstance(ProviderInstance):
 
         return currentDate, currentTime
 
-    def _call_sdf_get_smon_runs(self, connection: Connection, fromDate: date=None, toDate: date=None):
-        if fromDate is None:
-            fromDate = datetime(1971, 5, 20).date()
-
-        if toDate is None:
-            toDate = datetime(2999, 12, 31).date()
+    def _call_sdf_get_smon_runs(self, connection: Connection, fromDate: date, toDate: date):
         try:
             smon_result = connection.call('/SDF/SMON_GET_SMON_RUNS', FROM_DATE=fromDate, TO_DATE=toDate)
         except CommunicationError as e:
@@ -182,12 +183,9 @@ class SAPNWMonProviderInstance(ProviderInstance):
         return smon_result
 
     # parse result from /SDF/SMON_GET_SMON_RUNS and return GUID.
-    def _process_guid_using_smon_runs(self, result):
+    def _get_smon_run_result(self, result):
         if 'SMON_RUNS' in result:
-            if 'GUID' in result['SMON_RUNS'][0]:
-                return result['SMON_RUNS'][0]['GUID']
-            else:
-                raise ValueError("GUID value does not exist in /SDF/SMON_GET_SMON_RUNS return result.")
+            return result['SMON_RUNS']
         else:
             raise ValueError("SMON_RUNS value does not exist in /SDF/SMON_GET_SMON_RUNS return result.")
 
@@ -219,13 +217,36 @@ class SAPNWMonProviderInstance(ProviderInstance):
             if filterList:
                 filteredResult = list()
                 for record in processedResult:
-                    filteredRow = { columnName: record[columnName] for columnName in filterList }
+                    filteredRow = { columnName: record[columnName] for columnName in filterList if columnName in record }
                     filteredResult.append(filteredRow)
                 processedResult = filteredResult
         else:
             raise ValueError("SDF/SMON_ANALYSIS_READ result does not contain HEADER key.")
 
         return processedResult
+
+    # process all results from smon runs result.
+    def _process_latest_smon_runs(self,
+                                  connection: Connection,
+                                  smonRunsResult: List[Dict[str, str]],
+                                  columnList: List[str],
+                                  startDate: date,
+                                  startTime: time,
+                                  endTime: time):
+        self.tracer.info("executing RFC SDF/SMON_ANALYSIS_READ with date: %s start time: %s to end time %s" % (startDate, startTime, endTime))
+        # find all smon runs since last processed.
+        # TODO: unProcessed runs between endtime.
+        unProcessedSmonRuns = list(filter(lambda x: self.getFormattedDate(x['DATUM']) == startDate \
+            and self.getFormattedTIme(x['TIME']) >= startTime, smonRunsResult))
+        smonResult = list()
+        for smonRuns in unProcessedSmonRuns:
+            guid = smonRuns['GUID']
+            smon_analysis_result = self._call_sdf_smon_analysis_read(connection, guid, startDate, startTime, endTime)
+            smon_result = self._process_sdf_smon_analysis_read(smon_analysis_result, columnList)
+            if len(smon_result) != 0:
+                smonResult.extend(smon_result)
+
+        return smonResult
 
 ###########################
 # implement sapnwmon check.
@@ -251,13 +272,11 @@ class SAPNWMonProviderCheck(ProviderCheck):
 
             # get guid to call RFC SDF/SMON_ANALYSIS_READ.
             guidResult = self.providerInstance._call_sdf_get_smon_runs(connection, currentDate, currentDate)
-            guid = self.providerInstance._process_guid_using_smon_runs(guidResult)
+            smonResult = self.providerInstance._get_smon_run_result(guidResult)
 
             # based on last run and current time, calculate start and end time.
             startDate, startTime, endTime = self.getNextRunTime(currentDate, currentTime, lastRunTime)
-            smon_analysis_result = self.providerInstance._call_sdf_smon_analysis_read(connection, guid, startDate, startTime, currentTime)
-            self.tracer.info("executed RFC SDF/SMON_ANALYSIS_READ with date: %s start time: %s to end time %s" % (startDate, startTime, endTime))
-            smon_result = self.providerInstance._process_sdf_smon_analysis_read(smon_analysis_result, columnList)
+            smon_result = self.providerInstance._process_latest_smon_runs(connection, smonResult, columnList, startDate, startTime, endTime)
 
             # only add to list, if results exist.
             if len(smon_result) != 0:

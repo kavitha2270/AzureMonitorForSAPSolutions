@@ -3,7 +3,7 @@
 		{
 			"name": "SDFSMON",
 			"description": "RFC Call SDK SMON Analysis Read",
-			"customLog": "SapNetWeaver_SDF_SMON_Analysis_Run",
+			"customLog": "SapNetWeaver_SDF_SMON_Analysis_Run_Test1",
 			"frequencySecs": 60,
 			"includeInCustomerAnalytics": false,
 			"actions": [
@@ -43,7 +43,8 @@
 							"FREE_MEM_MB_INC_FS",
 							"DATUM",
 							"TIME",
-							"GUID"
+							"GUID",
+							"SERVER"
 						]
 					}
 				}
