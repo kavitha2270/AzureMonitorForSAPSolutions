@@ -48,6 +48,18 @@
 					}
 				}
 			]
+		},
+		{
+			"name": "ST03",
+			"description": "RFC Call SWNC Get Workload Snapshot",
+			"customLog": "SapNetWeaver_SWNC_Get_Workload_Snapshot",
+			"frequencySecs": 300,
+			"includeInCustomerAnalytics": false,
+			"actions": [
+				{
+					"type": "ExecuteSWNCGetWorkloadSnapshot"
+				}
+			]
 		}
 	]
 }
