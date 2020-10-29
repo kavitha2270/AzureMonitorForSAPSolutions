@@ -6,6 +6,7 @@
                         "description": "Export Data from the hacluster specific prometheus exporter",
                         "customLog": "Prometheus_HaClusterExporter",
                         "frequencySecs": 15,
+                        "includeInCustomerAnalytics": true,
                         "actions": [
                             {
                                 "type": "FetchMetrics",

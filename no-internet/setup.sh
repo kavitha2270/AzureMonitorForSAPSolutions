@@ -6,6 +6,7 @@ az extension add -n log-analytics 2>/dev/null
 
 SAPMON_RG=$1
 SAPMON_NAME=$2
+VERSION_TO_UPDATE=$3
 
 SAPMON=$(az sapmonitor show -g ${SAPMON_RG} -n ${SAPMON_NAME})
 if [ $? -ne 0 ]; then
@@ -43,6 +44,19 @@ while true; do
     esac
 done
 
+# Version to update is set
+if [[ ! -z "$VERSION_TO_UPDATE" ]]; then
+    while true; do
+        read -p "This will also update your SapMonitor version from ${COLLECTOR_VERSION} to ${VERSION_TO_UPDATE}, is that OK? (y/n): " yn
+        case $yn in
+            [Yy]* ) break;;
+            [Nn]* ) exit;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+    COLLECTOR_VERSION=${VERSION_TO_UPDATE}
+fi
+
 echo "==== Fetching Log-Analytics information ===="
 WORKSPACE_ID=$(az monitor log-analytics workspace show \
     --subscription ${LAWS_SUBSCRIPTION} \
@@ -78,7 +92,17 @@ az keyvault delete-policy \
     --output none
 
 echo "==== Downloading installation files ===="
-wget https://github.com/Azure/AzureMonitorForSAPSolutions/releases/download/${COLLECTOR_VERSION}/no-internet-install-${COLLECTOR_VERSION}.tar
+wget -O no-internet-install-${COLLECTOR_VERSION}.tar https://github.com/Azure/AzureMonitorForSAPSolutions/releases/download/${COLLECTOR_VERSION}/no-internet-install-${COLLECTOR_VERSION}.tar
+
+echo "==== Delete private endpoint if exists ===="
+az network private-endpoint delete \
+    --name PrivateEndpointStorageBlob \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --output none
+az network private-endpoint delete \
+    --name PrivateEndpointStorageQueue \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --output none
 
 echo "==== Uploading installation files to Storage Account ===="
 az storage container create \
@@ -93,7 +117,7 @@ az storage blob upload \
     --file no-internet-install-${COLLECTOR_VERSION}.tar \
     --output none 2>/dev/null
 
-echo "==== Upgrading Storage Acocunt from v1 to v2 ===="
+echo "==== Upgrading Storage Account from v1 to v2 ===="
 az storage account update \
     -g sapmon-rg-${SAPMON_ID} \
     -n sapmonsto${SAPMON_ID} \
@@ -101,7 +125,6 @@ az storage account update \
     --access-tier=Hot \
     --output none
 
-# TODO donaliu: need to check what is the minimum permissions to perform this action
 echo "==== Disable private endpoint policies on NSG ===="
 az network vnet subnet update \
     --name ${SUBNET_NAME} \
@@ -118,10 +141,7 @@ createPrivateEndpoint() {
     private_dns_zone_name=$4
 
     echo "==== Creating Private Endpoint ${endpoint_name} ===="
-    echo "NOTE: There may be deployment failures of the resource already exists and that is normal"
-
     zone_name=$(echo $private_dns_zone_name | sed 's/\./-/g')
-
     az network private-endpoint create \
         --name ${endpoint_name} \
         --resource-group sapmon-rg-${SAPMON_ID} \
@@ -132,19 +152,42 @@ createPrivateEndpoint() {
         --output none
 
     echo "==== Creating Private DNS Zone ${private_dns_zone_name} ===="
-    az network private-dns zone create \
+    set +e
+    az network private-dns zone show \
         --resource-group ${VNET_RG} \
         --name ${private_dns_zone_name} \
-        --output none
+        --output none 2>/dev/null
+    status=$?
+    set -e
+    if [ $status -ne 0 ]; then
+        az network private-dns zone create \
+          --resource-group ${VNET_RG} \
+          --name ${private_dns_zone_name} \
+          --output none
+    else
+        echo "Private DNS zone already exists, skip creation"
+    fi
 
     echo "==== Linking Private DNS with VNet ===="
-    az network private-dns link vnet create \
+    set +e
+    az network private-dns link vnet show \
         --resource-group ${VNET_RG} \
         --zone-name ${private_dns_zone_name} \
         --name ${type}-${SAPMON_ID} \
-        --virtual-network ${VNET_NAME} \
-        --registration-enabled false \
-        --output none
+        --output none 2>/dev/null
+    status=$?
+    set -e
+    if [ $status -ne 0 ]; then
+        az network private-dns link vnet create \
+          --resource-group ${VNET_RG} \
+          --zone-name ${private_dns_zone_name} \
+          --name ${type}-${SAPMON_ID} \
+          --virtual-network ${VNET_NAME} \
+          --registration-enabled false \
+          --output none
+    else
+        echo "Private DNS already linked with VNet, skip linking"
+    fi
 
     echo "==== Creating Private DNS entry for the Private Endpoint ===="
     az network private-endpoint dns-zone-group create \
@@ -180,7 +223,8 @@ dpkg -i "'$(tar -tf no-internet-install-'"${COLLECTOR_VERSION}"'.tar | grep cont
 dpkg -i "'$(tar -tf no-internet-install-'"${COLLECTOR_VERSION}"'.tar | grep docker-ce-cli_)'" && \
 dpkg -i "'$(tar -tf no-internet-install-'"${COLLECTOR_VERSION}"'.tar | grep docker-ce_)'" && \
 docker load -i azure-monitor-for-sap-solutions-${COLLECTOR_VERSION}.tar && \
-docker run mcr.microsoft.com/oss/azure/azure-monitor-for-sap-solutions:${COLLECTOR_VERSION} python3 /var/opt/microsoft/sapmon/${COLLECTOR_VERSION}/sapmon/payload/sapmon.py onboard --logAnalyticsWorkspaceId ${WORKSPACE_ID} --logAnalyticsSharedKey ${SHARED_KEY} --enableCustomerAnalytics > /tmp/monitor.log.out && \
+docker rm -f "'$(docker ps -aq)'" 2>/dev/null || true && \
+docker run --network host mcr.microsoft.com/oss/azure/azure-monitor-for-sap-solutions:${COLLECTOR_VERSION} python3 /var/opt/microsoft/sapmon/${COLLECTOR_VERSION}/sapmon/payload/sapmon.py onboard --logAnalyticsWorkspaceId ${WORKSPACE_ID} --logAnalyticsSharedKey ${SHARED_KEY} --enableCustomerAnalytics > /tmp/monitor.log.out && \
 mkdir -p /var/opt/microsoft/sapmon/state && \
 docker run --name sapmon-ver-${COLLECTOR_VERSION} --detach --restart always --network host --volume /var/opt/microsoft/sapmon/state:/var/opt/microsoft/sapmon/${COLLECTOR_VERSION}/sapmon/state --env Version=${COLLECTOR_VERSION} mcr.microsoft.com/oss/azure/azure-monitor-for-sap-solutions:${COLLECTOR_VERSION} sh /var/opt/microsoft/sapmon/${COLLECTOR_VERSION}/monitorapp.sh ${COLLECTOR_VERSION}"
 
