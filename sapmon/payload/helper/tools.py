@@ -67,7 +67,7 @@ class JsonEncoder(json.JSONEncoder):
       elif isinstance(o, bytes):
          s = hexlify(o).decode("ascii")
          return "0x%s" % s.upper()
-      return super(_JsonEncoder, self).default(o)      
+      return super(JsonEncoder, self).default(o)      
 
 # Helper class to de-serialize JSON into datetime and Decimal objects
 class JsonDecoder(json.JSONDecoder):
