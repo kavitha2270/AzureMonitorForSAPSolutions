@@ -237,7 +237,8 @@ class SAPNWMonProviderInstance(ProviderInstance):
         # find all smon runs since last processed.
         # TODO: unProcessed runs between endtime.
         unProcessedSmonRuns = list(filter(lambda x: self.getFormattedDate(x['DATUM']) == startDate \
-            and self.getFormattedTIme(x['TIME']) >= startTime, smonRunsResult))
+            and self.getFormattedTIme(x['TIME']) >= startTime and self.getFormattedTIme(x['TIME']) < endTime, \
+            smonRunsResult))
         smonResult = list()
         for smonRuns in unProcessedSmonRuns:
             guid = smonRuns['GUID']
@@ -315,8 +316,8 @@ class SAPNWMonProviderCheck(ProviderCheck):
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting rfc result to json string." % self.fullName)
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
-        self.tracer.debug("[%s] resultJson=%s" % (self.fullName,
-                                                   str(resultJsonString)))
+        # self.tracer.debug("[%s] resultJson=%s" % (self.fullName,
+        #                                            str(resultJsonString)))
         return resultJsonString
 
     def updateState(self):
