@@ -1,0 +1,84 @@
+{
+    "checks": [
+        {
+            "name": "RefreshSystemInstanceList",
+            "description": "SAP NetWeaver RefreshSystemInstanceList",
+            "customLog": "SapNWMon_GetSystemInstanceList",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "RefreshSystemInstanceList"
+                }
+            ]
+        },
+        {
+            "name": "GetProcessList",
+            "description": "SAP NetWeaver GetProcessList",
+            "customLog": "SapNWMon_GetProcessList",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteGenericWebServiceRequest",
+                    "parameters": {
+                        "apiName": "GetProcessList",
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "exclude"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "ABAPGetWPTable",
+            "description": "SAP NetWeaver ABAPGetWPTable",
+            "customLog": "SapNWMon_ABAPGetWPTable",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteGenericWebServiceRequest",
+                    "parameters": {
+                        "apiName": "ABAPGetWPTable",
+                        "filterFeatures": ["ABAP"],
+                        "filterType": "include"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "GetQueueStatistic",
+            "description": "SAP NetWeaver GetQueueStatistic",
+            "customLog": "SapNWMon_GetQueueStatistic",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteGenericWebServiceRequest",
+                    "parameters": {
+                        "apiName": "GetQueueStatistic",
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "exclude"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "EnqGetStatistic",
+            "description": "SAP NetWeaver EnqGetStatistic",
+            "customLog": "SapNWMon_EnqGetStatistic",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteEnqGetStatistic",
+                    "parameters": {
+                        "apiName": "EnqGetStatistic",
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "include"
+                    }
+                }
+            ]
+        }
+    ]
+}
