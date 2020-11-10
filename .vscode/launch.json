@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run current file",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Add Provider",
+            "type": "python",
+            "request": "launch",
+            "program": "sapmon/payload/sapmon.py",
+            "console": "integratedTerminal",
+            "args": ["provider", "add", "--name", "SapService", "--type", "SapService", "--properties", "{\"sapHostName\": \"10.0.0.14\", \"sapSysNr\": \"01\", \"sapClient\":\"000\", \"sapUsername\": \"Z-NWGTM\", \"sapPassword\": \"System03@\" }"]
+        },
+        {
+            "name": "Python: Monitor",
+            "type": "python",
+            "request": "launch",
+            "program": "sapmon/payload/sapmon.py",
+            "console": "integratedTerminal",
+            "args": ["monitor"]
+        }
+    ]
+}

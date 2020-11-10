@@ -1,0 +1,406 @@
+[18087] 2020-11-10 19:17:51,742 I context.py:33 initializing context
+[18087] 2020-11-10 19:17:51,743 I azure.py:48 getting compute instance
+[18087] 2020-11-10 19:17:51,762 I azure.py:65 getting auth token for resource=None
+[18087] 2020-11-10 19:17:51,775 I tracing.py:134 adding storage queue log handler
+[18087] 2020-11-10 19:17:51,775 I azure.py:249 initializing Storage Queue instance
+[18087] 2020-11-10 19:17:51,776 I tracing.py:206 fetching queue access keys from key vault
+[18087] 2020-11-10 19:17:51,776 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18087] 2020-11-10 19:17:51,785 I azure.py:127 getting KeyVault secret for secretId=storageAccessKey
+[18087] 2020-11-10 19:17:51,815 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18087] 2020-11-10 19:17:51,815 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,816 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,816 I _universal.py:426     'Accept': 'application/json'
+[18087] 2020-11-10 19:17:51,816 I _universal.py:426     'x-ms-client-request-id': '6d6ac352-2389-11eb-bd94-000d3a8d2620'
+[18087] 2020-11-10 19:17:51,816 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,817 I _universal.py:426     'Content-Length': '0'
+[18087] 2020-11-10 19:17:51,817 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,875 I _universal.py:454 Response status: 401
+[18087] 2020-11-10 19:17:51,876 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,876 I _universal.py:458     'Cache-Control': 'no-cache'
+[18087] 2020-11-10 19:17:51,876 I _universal.py:458     'Pragma': 'no-cache'
+[18087] 2020-11-10 19:17:51,876 I _universal.py:458     'Content-Length': '87'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'Expires': '-1'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'WWW-Authenticate': 'REDACTED'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'x-ms-request-id': '9ee5977b-7696-4afe-aff8-dcf97d2f48d0'
+[18087] 2020-11-10 19:17:51,877 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18087] 2020-11-10 19:17:51,878 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18087] 2020-11-10 19:17:51,878 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18087] 2020-11-10 19:17:51,878 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18087] 2020-11-10 19:17:51,878 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18087] 2020-11-10 19:17:51,878 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,880 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18087] 2020-11-10 19:17:51,880 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,880 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,880 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:51,880 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,881 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,890 I _universal.py:454 Response status: 400
+[18087] 2020-11-10 19:17:51,890 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,890 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,890 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:51,891 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,891 I _universal.py:458     'Content-Length': '95'
+[18087] 2020-11-10 19:17:51,892 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18087] 2020-11-10 19:17:51,892 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,892 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,893 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:51,893 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,893 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,905 I _universal.py:454 Response status: 200
+[18087] 2020-11-10 19:17:51,906 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,906 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,906 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:51,906 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,906 I _universal.py:458     'Content-Length': '1714'
+[18087] 2020-11-10 19:17:51,908 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18087] 2020-11-10 19:17:51,908 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,908 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,908 I _universal.py:426     'Accept': 'application/json'
+[18087] 2020-11-10 19:17:51,908 I _universal.py:426     'x-ms-client-request-id': '6d6ac352-2389-11eb-bd94-000d3a8d2620'
+[18087] 2020-11-10 19:17:51,909 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,909 I _universal.py:426     'Authorization': 'REDACTED'
+[18087] 2020-11-10 19:17:51,909 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,942 I _universal.py:454 Response status: 404
+[18087] 2020-11-10 19:17:51,942 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,942 I _universal.py:458     'Cache-Control': 'no-cache'
+[18087] 2020-11-10 19:17:51,942 I _universal.py:458     'Pragma': 'no-cache'
+[18087] 2020-11-10 19:17:51,942 I _universal.py:458     'Content-Length': '313'
+[18087] 2020-11-10 19:17:51,943 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,943 I _universal.py:458     'Expires': '-1'
+[18087] 2020-11-10 19:17:51,943 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18087] 2020-11-10 19:17:51,943 I _universal.py:458     'x-ms-request-id': 'd5708d3e-a9e3-48b6-b7ce-58b64a162d93'
+[18087] 2020-11-10 19:17:51,943 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18087] 2020-11-10 19:17:51,944 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18087] 2020-11-10 19:17:51,944 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18087] 2020-11-10 19:17:51,944 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18087] 2020-11-10 19:17:51,944 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18087] 2020-11-10 19:17:51,944 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,945 E azure.py:133 could not get KeyVault secret for secretId=storageAccessKey ((SecretNotFound) A secret with (name/id) storageAccessKey was not found in this key vault. If you recently deleted this secret you may be able to recover it using the correct recovery command. For help resolving this issue, please see https://go.microsoft.com/fwlink/?linkid=2125182)
+[18087] 2020-11-10 19:17:51,945 W tracing.py:212 unable to get access keys from key vault, fetching from storage account ('NoneType' object has no attribute 'value') 
+[18087] 2020-11-10 19:17:51,945 I tracing.py:214 fetching queue access keys from storage account
+[18087] 2020-11-10 19:17:51,945 I azure.py:249 initializing Storage Queue instance
+[18087] 2020-11-10 19:17:51,946 I azure.py:259 getting access key for Storage Queue
+[18087] 2020-11-10 19:17:51,946 E tracing.py:153 could not add handler for the storage queue logging (__init__() missing 1 required positional argument: 'credential') 
+[18087] 2020-11-10 19:17:51,946 I tracing.py:164 creating customer metrics tracer object
+[18087] 2020-11-10 19:17:51,946 I azure.py:249 initializing Storage Queue instance
+[18087] 2020-11-10 19:17:51,946 I tracing.py:206 fetching queue access keys from key vault
+[18087] 2020-11-10 19:17:51,947 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18087] 2020-11-10 19:17:51,948 I azure.py:127 getting KeyVault secret for secretId=storageAccessKey
+[18087] 2020-11-10 19:17:51,949 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18087] 2020-11-10 19:17:51,949 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,949 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,949 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:51,950 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,950 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,958 I _universal.py:454 Response status: 400
+[18087] 2020-11-10 19:17:51,958 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,958 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,959 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:51,959 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,959 I _universal.py:458     'Content-Length': '95'
+[18087] 2020-11-10 19:17:51,960 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18087] 2020-11-10 19:17:51,960 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,960 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,960 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:51,960 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,961 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:51,971 I _universal.py:454 Response status: 200
+[18087] 2020-11-10 19:17:51,971 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:51,972 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:51,972 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:51,973 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:51,974 I _universal.py:458     'Content-Length': '1714'
+[18087] 2020-11-10 19:17:51,975 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18087] 2020-11-10 19:17:51,975 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:51,975 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:51,975 I _universal.py:426     'Accept': 'application/json'
+[18087] 2020-11-10 19:17:51,976 I _universal.py:426     'x-ms-client-request-id': '6d6ac353-2389-11eb-bd94-000d3a8d2620'
+[18087] 2020-11-10 19:17:51,976 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:51,976 I _universal.py:426     'Authorization': 'REDACTED'
+[18087] 2020-11-10 19:17:51,976 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:52,032 I _universal.py:454 Response status: 404
+[18087] 2020-11-10 19:17:52,032 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:52,032 I _universal.py:458     'Cache-Control': 'no-cache'
+[18087] 2020-11-10 19:17:52,032 I _universal.py:458     'Pragma': 'no-cache'
+[18087] 2020-11-10 19:17:52,032 I _universal.py:458     'Content-Length': '313'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'Expires': '-1'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'x-ms-request-id': '6fc1bd3d-1d37-4379-b942-973d1c5c9733'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18087] 2020-11-10 19:17:52,033 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18087] 2020-11-10 19:17:52,034 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18087] 2020-11-10 19:17:52,034 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18087] 2020-11-10 19:17:52,034 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18087] 2020-11-10 19:17:52,034 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:52,036 E azure.py:133 could not get KeyVault secret for secretId=storageAccessKey ((SecretNotFound) A secret with (name/id) storageAccessKey was not found in this key vault. If you recently deleted this secret you may be able to recover it using the correct recovery command. For help resolving this issue, please see https://go.microsoft.com/fwlink/?linkid=2125182)
+[18087] 2020-11-10 19:17:52,037 W tracing.py:212 unable to get access keys from key vault, fetching from storage account ('NoneType' object has no attribute 'value') 
+[18087] 2020-11-10 19:17:52,037 I tracing.py:214 fetching queue access keys from storage account
+[18087] 2020-11-10 19:17:52,037 I azure.py:249 initializing Storage Queue instance
+[18087] 2020-11-10 19:17:52,038 I azure.py:259 getting access key for Storage Queue
+[18087] 2020-11-10 19:17:52,038 E tracing.py:178 could not add handler for the storage queue logging (__init__() missing 1 required positional argument: 'credential') 
+[18087] 2020-11-10 19:17:52,038 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18087] 2020-11-10 19:17:52,039 I azure.py:150 checking if KeyVault sapmon-kv-3896b602d2bb42 exists
+[18087] 2020-11-10 19:17:52,039 I azure.py:154 KeyVault sapmon-kv-3896b602d2bb42 exists
+[18087] 2020-11-10 19:17:52,040 I context.py:66 successfully initialized context
+[18087] 2020-11-10 19:17:52,040 I sapmon.py:154 trying to add new provider instance (name=SapService, type=SapService)
+[18087] 2020-11-10 19:17:52,041 I base.py:93 [SapService/SapService] reading state file for provider instance
+[18087] 2020-11-10 19:17:52,041 W base.py:106 [SapService/SapService] state file /home/jabhatti/repos/AzureMonitorForSAPSolutions/sapmon/state/SapService.state does not exist
+[18087] 2020-11-10 19:17:52,041 I sapservice.py:72 connecting to sap with host name (%s) to test required rfc calls.
+[18087] 2020-11-10 19:17:52,041 I sapmon.py:110 saving instance SapService to customer KeyVault
+[18087] 2020-11-10 19:17:52,042 I azure.py:104 setting KeyVault secret for secretName=SapService
+[18087] 2020-11-10 19:17:52,049 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18087] 2020-11-10 19:17:52,050 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:52,050 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:52,050 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:52,050 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:52,051 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:52,060 I _universal.py:454 Response status: 400
+[18087] 2020-11-10 19:17:52,061 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:52,061 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:52,061 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:52,061 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:52,061 I _universal.py:458     'Content-Length': '95'
+[18087] 2020-11-10 19:17:52,062 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18087] 2020-11-10 19:17:52,062 I _universal.py:422 Request method: 'GET'
+[18087] 2020-11-10 19:17:52,063 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:52,063 I _universal.py:426     'Metadata': 'REDACTED'
+[18087] 2020-11-10 19:17:52,063 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:52,063 I _universal.py:439 No body was attached to the request
+[18087] 2020-11-10 19:17:52,073 I _universal.py:454 Response status: 200
+[18087] 2020-11-10 19:17:52,074 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:52,074 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:52,074 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18087] 2020-11-10 19:17:52,074 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:52,075 I _universal.py:458     'Content-Length': '1714'
+[18087] 2020-11-10 19:17:52,076 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/SapService?api-version=REDACTED'
+[18087] 2020-11-10 19:17:52,076 I _universal.py:422 Request method: 'PUT'
+[18087] 2020-11-10 19:17:52,076 I _universal.py:423 Request headers:
+[18087] 2020-11-10 19:17:52,076 I _universal.py:426     'Content-Type': 'application/json'
+[18087] 2020-11-10 19:17:52,076 I _universal.py:426     'Accept': 'application/json'
+[18087] 2020-11-10 19:17:52,077 I _universal.py:426     'Content-Length': '241'
+[18087] 2020-11-10 19:17:52,077 I _universal.py:426     'x-ms-client-request-id': '6d6ac354-2389-11eb-bd94-000d3a8d2620'
+[18087] 2020-11-10 19:17:52,077 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18087] 2020-11-10 19:17:52,077 I _universal.py:426     'Authorization': 'REDACTED'
+[18087] 2020-11-10 19:17:52,077 I _universal.py:437 A body is sent with the request
+[18087] 2020-11-10 19:17:52,313 I _universal.py:454 Response status: 200
+[18087] 2020-11-10 19:17:52,313 I _universal.py:455 Response headers:
+[18087] 2020-11-10 19:17:52,313 I _universal.py:458     'Cache-Control': 'no-cache'
+[18087] 2020-11-10 19:17:52,314 I _universal.py:458     'Pragma': 'no-cache'
+[18087] 2020-11-10 19:17:52,314 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18087] 2020-11-10 19:17:52,314 I _universal.py:458     'Expires': '-1'
+[18087] 2020-11-10 19:17:52,314 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18087] 2020-11-10 19:17:52,315 I _universal.py:458     'x-ms-request-id': '7e1b163e-d0ea-4278-b33a-4b14566a1f75'
+[18087] 2020-11-10 19:17:52,315 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18087] 2020-11-10 19:17:52,315 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18087] 2020-11-10 19:17:52,315 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18087] 2020-11-10 19:17:52,315 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18087] 2020-11-10 19:17:52,316 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18087] 2020-11-10 19:17:52,316 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:17:51 GMT'
+[18087] 2020-11-10 19:17:52,316 I _universal.py:458     'Content-Length': '468'
+[18087] 2020-11-10 19:17:52,318 I sapmon.py:174 successfully added provider instance SapService/SapService to KeyVault
+[18188] 2020-11-10 19:18:38,048 I context.py:33 initializing context
+[18188] 2020-11-10 19:18:38,049 I azure.py:48 getting compute instance
+[18188] 2020-11-10 19:18:38,067 I azure.py:65 getting auth token for resource=None
+[18188] 2020-11-10 19:18:38,079 I tracing.py:134 adding storage queue log handler
+[18188] 2020-11-10 19:18:38,079 I azure.py:249 initializing Storage Queue instance
+[18188] 2020-11-10 19:18:38,079 I tracing.py:206 fetching queue access keys from key vault
+[18188] 2020-11-10 19:18:38,080 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18188] 2020-11-10 19:18:38,089 I azure.py:127 getting KeyVault secret for secretId=storageAccessKey
+[18188] 2020-11-10 19:18:38,100 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18188] 2020-11-10 19:18:38,100 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,100 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,101 I _universal.py:426     'Accept': 'application/json'
+[18188] 2020-11-10 19:18:38,101 I _universal.py:426     'x-ms-client-request-id': '8901158a-2389-11eb-bd94-000d3a8d2620'
+[18188] 2020-11-10 19:18:38,101 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,101 I _universal.py:426     'Content-Length': '0'
+[18188] 2020-11-10 19:18:38,102 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,180 I _universal.py:454 Response status: 401
+[18188] 2020-11-10 19:18:38,181 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,181 I _universal.py:458     'Cache-Control': 'no-cache'
+[18188] 2020-11-10 19:18:38,181 I _universal.py:458     'Pragma': 'no-cache'
+[18188] 2020-11-10 19:18:38,181 I _universal.py:458     'Content-Length': '87'
+[18188] 2020-11-10 19:18:38,181 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,182 I _universal.py:458     'Expires': '-1'
+[18188] 2020-11-10 19:18:38,182 I _universal.py:458     'WWW-Authenticate': 'REDACTED'
+[18188] 2020-11-10 19:18:38,182 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18188] 2020-11-10 19:18:38,182 I _universal.py:458     'x-ms-request-id': 'b47e6bf9-d336-4715-b964-7d03d53c855b'
+[18188] 2020-11-10 19:18:38,182 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18188] 2020-11-10 19:18:38,183 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18188] 2020-11-10 19:18:38,183 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18188] 2020-11-10 19:18:38,183 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18188] 2020-11-10 19:18:38,183 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18188] 2020-11-10 19:18:38,183 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,184 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18188] 2020-11-10 19:18:38,185 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,185 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,185 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:38,185 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,185 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,195 I _universal.py:454 Response status: 400
+[18188] 2020-11-10 19:18:38,195 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,196 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,196 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:38,196 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,196 I _universal.py:458     'Content-Length': '95'
+[18188] 2020-11-10 19:18:38,197 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18188] 2020-11-10 19:18:38,197 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,198 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,198 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:38,198 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,198 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,208 I _universal.py:454 Response status: 200
+[18188] 2020-11-10 19:18:38,208 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,209 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,209 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:38,209 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,209 I _universal.py:458     'Content-Length': '1714'
+[18188] 2020-11-10 19:18:38,211 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18188] 2020-11-10 19:18:38,211 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,211 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,211 I _universal.py:426     'Accept': 'application/json'
+[18188] 2020-11-10 19:18:38,211 I _universal.py:426     'x-ms-client-request-id': '8901158a-2389-11eb-bd94-000d3a8d2620'
+[18188] 2020-11-10 19:18:38,212 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,212 I _universal.py:426     'Authorization': 'REDACTED'
+[18188] 2020-11-10 19:18:38,212 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,247 I _universal.py:454 Response status: 404
+[18188] 2020-11-10 19:18:38,247 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,247 I _universal.py:458     'Cache-Control': 'no-cache'
+[18188] 2020-11-10 19:18:38,248 I _universal.py:458     'Pragma': 'no-cache'
+[18188] 2020-11-10 19:18:38,248 I _universal.py:458     'Content-Length': '313'
+[18188] 2020-11-10 19:18:38,248 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,248 I _universal.py:458     'Expires': '-1'
+[18188] 2020-11-10 19:18:38,248 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'x-ms-request-id': 'b69369ee-1463-4dbb-911a-12d8cf8b5084'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18188] 2020-11-10 19:18:38,249 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18188] 2020-11-10 19:18:38,250 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,251 E azure.py:133 could not get KeyVault secret for secretId=storageAccessKey ((SecretNotFound) A secret with (name/id) storageAccessKey was not found in this key vault. If you recently deleted this secret you may be able to recover it using the correct recovery command. For help resolving this issue, please see https://go.microsoft.com/fwlink/?linkid=2125182)
+[18188] 2020-11-10 19:18:38,251 W tracing.py:212 unable to get access keys from key vault, fetching from storage account ('NoneType' object has no attribute 'value') 
+[18188] 2020-11-10 19:18:38,251 I tracing.py:214 fetching queue access keys from storage account
+[18188] 2020-11-10 19:18:38,251 I azure.py:249 initializing Storage Queue instance
+[18188] 2020-11-10 19:18:38,251 I azure.py:259 getting access key for Storage Queue
+[18188] 2020-11-10 19:18:38,252 E tracing.py:153 could not add handler for the storage queue logging (__init__() missing 1 required positional argument: 'credential') 
+[18188] 2020-11-10 19:18:38,252 I tracing.py:164 creating customer metrics tracer object
+[18188] 2020-11-10 19:18:38,252 I azure.py:249 initializing Storage Queue instance
+[18188] 2020-11-10 19:18:38,252 I tracing.py:206 fetching queue access keys from key vault
+[18188] 2020-11-10 19:18:38,253 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18188] 2020-11-10 19:18:38,254 I azure.py:127 getting KeyVault secret for secretId=storageAccessKey
+[18188] 2020-11-10 19:18:38,256 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18188] 2020-11-10 19:18:38,256 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,256 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,256 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:38,257 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,257 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,268 I _universal.py:454 Response status: 400
+[18188] 2020-11-10 19:18:38,268 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,269 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,269 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:38,270 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,270 I _universal.py:458     'Content-Length': '95'
+[18188] 2020-11-10 19:18:38,271 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18188] 2020-11-10 19:18:38,271 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,272 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,272 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:38,272 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,272 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,282 I _universal.py:454 Response status: 200
+[18188] 2020-11-10 19:18:38,283 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,283 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,283 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:38,283 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,283 I _universal.py:458     'Content-Length': '1714'
+[18188] 2020-11-10 19:18:38,284 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/storageAccessKey/?api-version=REDACTED'
+[18188] 2020-11-10 19:18:38,284 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:38,285 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:38,285 I _universal.py:426     'Accept': 'application/json'
+[18188] 2020-11-10 19:18:38,285 I _universal.py:426     'x-ms-client-request-id': '8901158b-2389-11eb-bd94-000d3a8d2620'
+[18188] 2020-11-10 19:18:38,285 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:38,286 I _universal.py:426     'Authorization': 'REDACTED'
+[18188] 2020-11-10 19:18:38,286 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:38,351 I _universal.py:454 Response status: 404
+[18188] 2020-11-10 19:18:38,352 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:38,352 I _universal.py:458     'Cache-Control': 'no-cache'
+[18188] 2020-11-10 19:18:38,352 I _universal.py:458     'Pragma': 'no-cache'
+[18188] 2020-11-10 19:18:38,352 I _universal.py:458     'Content-Length': '313'
+[18188] 2020-11-10 19:18:38,353 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:38,353 I _universal.py:458     'Expires': '-1'
+[18188] 2020-11-10 19:18:38,353 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18188] 2020-11-10 19:18:38,353 I _universal.py:458     'x-ms-request-id': 'eebe7b8f-8508-4216-a0b3-2a98fe5d3478'
+[18188] 2020-11-10 19:18:38,353 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18188] 2020-11-10 19:18:38,354 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18188] 2020-11-10 19:18:38,354 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18188] 2020-11-10 19:18:38,354 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18188] 2020-11-10 19:18:38,355 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18188] 2020-11-10 19:18:38,355 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:37 GMT'
+[18188] 2020-11-10 19:18:38,355 E azure.py:133 could not get KeyVault secret for secretId=storageAccessKey ((SecretNotFound) A secret with (name/id) storageAccessKey was not found in this key vault. If you recently deleted this secret you may be able to recover it using the correct recovery command. For help resolving this issue, please see https://go.microsoft.com/fwlink/?linkid=2125182)
+[18188] 2020-11-10 19:18:38,356 W tracing.py:212 unable to get access keys from key vault, fetching from storage account ('NoneType' object has no attribute 'value') 
+[18188] 2020-11-10 19:18:38,356 I tracing.py:214 fetching queue access keys from storage account
+[18188] 2020-11-10 19:18:38,356 I azure.py:249 initializing Storage Queue instance
+[18188] 2020-11-10 19:18:38,356 I azure.py:259 getting access key for Storage Queue
+[18188] 2020-11-10 19:18:38,356 E tracing.py:178 could not add handler for the storage queue logging (__init__() missing 1 required positional argument: 'credential') 
+[18188] 2020-11-10 19:18:38,356 I azure.py:94 initializing KeyVault sapmon-kv-3896b602d2bb42
+[18188] 2020-11-10 19:18:38,357 I azure.py:150 checking if KeyVault sapmon-kv-3896b602d2bb42 exists
+[18188] 2020-11-10 19:18:38,358 I azure.py:154 KeyVault sapmon-kv-3896b602d2bb42 exists
+[18188] 2020-11-10 19:18:38,358 I context.py:66 successfully initialized context
+[18188] 2020-11-10 19:18:38,358 I sapmon.py:154 trying to add new provider instance (name=SapService, type=SapService)
+[18188] 2020-11-10 19:18:38,359 I base.py:93 [SapService/SapService] reading state file for provider instance
+[18188] 2020-11-10 19:18:38,360 W base.py:106 [SapService/SapService] state file /home/jabhatti/repos/AzureMonitorForSAPSolutions/sapmon/state/SapService.state does not exist
+[18188] 2020-11-10 19:18:40,621 I sapservice.py:72 connecting to sap with host name (%s) to test required rfc calls.
+[18188] 2020-11-10 19:18:45,204 I sapmon.py:110 saving instance SapService to customer KeyVault
+[18188] 2020-11-10 19:18:45,206 I azure.py:104 setting KeyVault secret for secretName=SapService
+[18188] 2020-11-10 19:18:45,209 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token'
+[18188] 2020-11-10 19:18:45,209 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:45,209 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:45,210 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:45,210 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:45,210 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:45,221 I _universal.py:454 Response status: 400
+[18188] 2020-11-10 19:18:45,221 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:45,222 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:45,222 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:45,222 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:45 GMT'
+[18188] 2020-11-10 19:18:45,222 I _universal.py:458     'Content-Length': '95'
+[18188] 2020-11-10 19:18:45,223 I _universal.py:421 Request URL: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=REDACTED&resource=REDACTED&client_id=REDACTED'
+[18188] 2020-11-10 19:18:45,223 I _universal.py:422 Request method: 'GET'
+[18188] 2020-11-10 19:18:45,224 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:45,224 I _universal.py:426     'Metadata': 'REDACTED'
+[18188] 2020-11-10 19:18:45,224 I _universal.py:426     'User-Agent': 'azsdk-python-identity/1.4.1 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:45,224 I _universal.py:439 No body was attached to the request
+[18188] 2020-11-10 19:18:45,234 I _universal.py:454 Response status: 200
+[18188] 2020-11-10 19:18:45,235 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:45,235 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:45,235 I _universal.py:458     'Server': 'IMDS/150.870.65.478'
+[18188] 2020-11-10 19:18:45,235 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:45 GMT'
+[18188] 2020-11-10 19:18:45,235 I _universal.py:458     'Content-Length': '1714'
+[18188] 2020-11-10 19:18:45,236 I _universal.py:421 Request URL: 'https://sapmon-kv-3896b602d2bb42.vault.azure.net/secrets/SapService?api-version=REDACTED'
+[18188] 2020-11-10 19:18:45,237 I _universal.py:422 Request method: 'PUT'
+[18188] 2020-11-10 19:18:45,237 I _universal.py:423 Request headers:
+[18188] 2020-11-10 19:18:45,237 I _universal.py:426     'Content-Type': 'application/json'
+[18188] 2020-11-10 19:18:45,237 I _universal.py:426     'Accept': 'application/json'
+[18188] 2020-11-10 19:18:45,237 I _universal.py:426     'Content-Length': '241'
+[18188] 2020-11-10 19:18:45,238 I _universal.py:426     'x-ms-client-request-id': '8d3e3236-2389-11eb-bd94-000d3a8d2620'
+[18188] 2020-11-10 19:18:45,239 I _universal.py:426     'User-Agent': 'azsdk-python-keyvault-secrets/4.2.0 Python/3.7.9 (Linux-4.15.0-1092-azure-x86_64-with-debian-stretch-sid)'
+[18188] 2020-11-10 19:18:45,239 I _universal.py:426     'Authorization': 'REDACTED'
+[18188] 2020-11-10 19:18:45,239 I _universal.py:437 A body is sent with the request
+[18188] 2020-11-10 19:18:45,431 I _universal.py:454 Response status: 200
+[18188] 2020-11-10 19:18:45,431 I _universal.py:455 Response headers:
+[18188] 2020-11-10 19:18:45,431 I _universal.py:458     'Cache-Control': 'no-cache'
+[18188] 2020-11-10 19:18:45,431 I _universal.py:458     'Pragma': 'no-cache'
+[18188] 2020-11-10 19:18:45,432 I _universal.py:458     'Content-Type': 'application/json; charset=utf-8'
+[18188] 2020-11-10 19:18:45,432 I _universal.py:458     'Expires': '-1'
+[18188] 2020-11-10 19:18:45,432 I _universal.py:458     'x-ms-keyvault-region': 'eastus'
+[18188] 2020-11-10 19:18:45,432 I _universal.py:458     'x-ms-request-id': '8f655de7-d448-4ea4-9bb9-38f98a71b326'
+[18188] 2020-11-10 19:18:45,432 I _universal.py:458     'x-ms-keyvault-service-version': '1.2.58.0'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'x-ms-keyvault-network-info': 'conn_type=Ipv4;addr=13.72.112.58;act_addr_fam=InterNetwork;'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'X-Powered-By': 'REDACTED'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'Strict-Transport-Security': 'REDACTED'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'X-Content-Type-Options': 'REDACTED'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'Date': 'Tue, 10 Nov 2020 19:18:45 GMT'
+[18188] 2020-11-10 19:18:45,433 I _universal.py:458     'Content-Length': '468'
+[18188] 2020-11-10 19:18:45,435 I sapmon.py:174 successfully added provider instance SapService/SapService to KeyVault
