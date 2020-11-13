@@ -29,6 +29,10 @@ LAWS_RG=$(echo ${LAWS_ARM_ID} | cut -d'/' -f5)
 LAWS_NAME=$(echo ${LAWS_ARM_ID} | cut -d'/' -f9)
 
 UNSUPPORTED_VERSIONS=("" "v1.5" "v1.6" "v2.0-beta" "2.0" "2.1" "2.2")
+STORAGE_BLOB_PRIVATE_ENDPOINT_NAME=PrivateEndpointStorageBlob
+STORAGE_QUEUE_ENDPOINT_NAME=PrivateEndpointStorageQueue
+KEYVAULT_PRIVATE_ENDPOINT_NAME=PrivateEndpointKeyVault
+LAWS_PRIVATE_ENDPOINT_NAME=PrivateEndpointLAWS
 
 if [[ " ${UNSUPPORTED_VERSIONS[@]} " =~ " ${COLLECTOR_VERSION} " ]]; then
     echo "The SapMonitor is of an unsupported version, please recreate the SapMonitor"
@@ -96,11 +100,11 @@ wget -O no-internet-install-${COLLECTOR_VERSION}.tar https://github.com/Azure/Az
 
 echo "==== Delete private endpoint if exists ===="
 az network private-endpoint delete \
-    --name PrivateEndpointStorageBlob \
+    --name ${STORAGE_BLOB_PRIVATE_ENDPOINT_NAME} \
     --resource-group sapmon-rg-${SAPMON_ID} \
     --output none
 az network private-endpoint delete \
-    --name PrivateEndpointStorageQueue \
+    --name ${STORAGE_QUEUE_ENDPOINT_NAME} \
     --resource-group sapmon-rg-${SAPMON_ID} \
     --output none
 
@@ -198,9 +202,9 @@ createPrivateEndpoint() {
         --zone-name ${zone_name} \
         --output none
 }
-createPrivateEndpoint PrivateEndpointStorageBlob blob /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.Storage/storageAccounts/sapmonsto${SAPMON_ID} privatelink.blob.core.windows.net
-createPrivateEndpoint PrivateEndpointStorageQueue queue /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.Storage/storageAccounts/sapmonsto${SAPMON_ID} privatelink.queue.core.windows.net
-createPrivateEndpoint PrivateEndpointKeyVault vault /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.KeyVault/vaults/sapmon-kv-${SAPMON_ID} privatelink.vaultcore.azure.net
+createPrivateEndpoint ${STORAGE_BLOB_PRIVATE_ENDPOINT_NAME} blob /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.Storage/storageAccounts/sapmonsto${SAPMON_ID} privatelink.blob.core.windows.net
+createPrivateEndpoint ${STORAGE_QUEUE_ENDPOINT_NAME} queue /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.Storage/storageAccounts/sapmonsto${SAPMON_ID} privatelink.queue.core.windows.net
+createPrivateEndpoint ${KEYVAULT_PRIVATE_ENDPOINT_NAME} vault /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/Microsoft.KeyVault/vaults/sapmon-kv-${SAPMON_ID} privatelink.vaultcore.azure.net
 
 echo "==== Creating Private Link Scope for Log-Analytics ===="
 az monitor private-link-scope create \
@@ -213,11 +217,41 @@ az monitor private-link-scope scoped-resource create \
     --resource-group sapmon-rg-${SAPMON_ID} \
     --scope-name PrivateLinkScopeLAWS \
     --output none
-createPrivateEndpoint PrivateEndpointLAWS azuremonitor /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/microsoft.insights/privateLinkScopes/PrivateLinkScopeLAWS privatelink.ods.opinsights.azure.com
+createPrivateEndpoint ${LAWS_PRIVATE_ENDPOINT_NAME} azuremonitor /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/sapmon-rg-${SAPMON_ID}/providers/microsoft.insights/privateLinkScopes/PrivateLinkScopeLAWS privatelink.ods.opinsights.azure.com
+
+STORAGE_BLOB_PRIVATE_IP=$(
+    az network private-endpoint dns-zone-group show \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --name default \
+    --endpoint-name ${STORAGE_BLOB_PRIVATE_ENDPOINT_NAME} \
+    --query "privateDnsZoneConfigs[0].recordSets[0].ipAddresses[0]" \
+    --output tsv)
+STORAGE_QUEUE_PRIVATE_IP=$(
+    az network private-endpoint dns-zone-group show \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --name default \
+    --endpoint-name ${STORAGE_QUEUE_ENDPOINT_NAME} \
+    --query "privateDnsZoneConfigs[0].recordSets[0].ipAddresses[0]" \
+    --output tsv)
+KEYVAULT_PRIVATE_IP=$(
+    az network private-endpoint dns-zone-group show \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --name default \
+    --endpoint-name ${KEYVAULT_PRIVATE_ENDPOINT_NAME} \
+    --query "privateDnsZoneConfigs[0].recordSets[0].ipAddresses[0]" \
+    --output tsv)
+LAWS_PRIVATE_IP=$(
+    az network private-endpoint dns-zone-group show \
+    --resource-group sapmon-rg-${SAPMON_ID} \
+    --name default \
+    --endpoint-name ${LAWS_PRIVATE_ENDPOINT_NAME} \
+    --query "privateDnsZoneConfigs[0].recordSets[0].ipAddresses[0]" \
+    --output tsv)
 
 
 echo "==== Configuring Collector VM ===="
-COMMAND_TO_EXECUTE="wget https://sapmonsto${SAPMON_ID}.blob.core.windows.net/no-internet/no-internet-install-${COLLECTOR_VERSION}.tar && \
+COMMAND_TO_EXECUTE="echo \\\"127.0.0.1 localhost\\n${STORAGE_BLOB_PRIVATE_IP} sapmonsto${SAPMON_ID}.blob.core.windows.net\\n${STORAGE_QUEUE_PRIVATE_IP} sapmonsto${SAPMON_ID}.queue.core.windows.net\\n${KEYVAULT_PRIVATE_IP} sapmon-kv-${SAPMON_ID}.vault.azure.net\\n${LAWS_PRIVATE_IP} ${WORKSPACE_ID}.ods.opinsights.azure.com\\n\\n# The following lines are desirable for IPv6 capable hosts\\n::1 ip6-localhost ip6-loopback\\nfe00::0 ip6-localnet\\nff00::0 ip6-mcastprefix\\nff02::1 ip6-allnodes\\nff02::2 ip6-allrouters\\nff02::3 ip6-allhosts\\\" > /etc/hosts && \
+wget https://sapmonsto${SAPMON_ID}.blob.core.windows.net/no-internet/no-internet-install-${COLLECTOR_VERSION}.tar && \
 tar -xf no-internet-install-${COLLECTOR_VERSION}.tar && \
 dpkg -i "'$(tar -tf no-internet-install-'"${COLLECTOR_VERSION}"'.tar | grep containerd.io_)'" && \
 dpkg -i "'$(tar -tf no-internet-install-'"${COLLECTOR_VERSION}"'.tar | grep docker-ce-cli_)'" && \
