@@ -1,11 +1,24 @@
 {
     "checks": [
         {
+            "name": "ProcessSystemInstanceList",
+            "description": "SAP NetWeaver GetSystemInstanceList",
+            "customLog": "SapService_GetSystemInstanceList",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ProcessSystemInstanceList",
+                    "parameters": {}
+                }
+            ]
+        },
+        {
             "name": "GetSystemInstanceList",
             "description": "SAP NetWeaver GetSystemInstanceList",
             "customLog": "SapService_GetSystemInstanceList",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": true,
+            "includeInCustomerAnalytics": false,
             "actions": [
                 {
                     "type": "ExecuteWebServiceRequest",
