@@ -58,7 +58,7 @@ class sapServiceProviderInstance(ProviderInstance):
                        **kwargs)
 
     """
-    parse provider properties and get sid, host name and instance number.
+    parse provider properties and get sid, host name and instance number
     """
     def parseProperties(self) -> bool:
         self.sapSid = self.providerProperties.get("sapSid", None)
@@ -99,7 +99,7 @@ class sapServiceProviderInstance(ProviderInstance):
             raise e
 
     def callSoapApi(self, hostName: str, port: str, apiName: str) -> str:
-        self.tracer.info("[%s] executing SOAP API: %s for hostName: %s and port: %s: %s" % (self.fullName, apiName, hostName, port))
+        self.tracer.info("[%s] executing SOAP API: %s for hostName: %s and port: %s" % (self.fullName, apiName, hostName, port))
 
         try:
             client = self._establishConnection(hostName, port)
@@ -136,26 +136,30 @@ class sapServiceProviderCheck(ProviderCheck):
         self.lastRunTime = None
         return super().__init__(provider, **kwargs)
 
-    def _get_instances(self):
-        result = self.providerInstance.callSoapApi("hanaapp", "50114", "GetSystemInstanceList")
-        return result.item
+    def _get_formatted_timestamp(self) -> str:
+        return datetime.now().isoformat()
 
-    def _actionProcessSystemInstanceList(self):
-        self.tracer.info("[%s] getting list of system instances" % self.fullName)
-        # Fetch list from storage. If storage does not have list, use provided
-        # hostName and sysNr.
+    def _get_hosts(self) -> list:
+        # Fetch last known list from storage. If storage does not have list, use provided
+        # hostName and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
-            self.tracer.debug("[%s] no host config persisted yet, using user-provided host name and sysnr" % self.fullName)
+            self.tracer.debug("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
             hosts = [(self.providerInstance.sapHostName, \
                 self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapSysNr))]
         else:
-            self.tracer.info("[%s] executing get system instance list web service call" % self.fullName)
+            self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
             hosts = [(hostConfig['hostName'], hostConfig['httpsPort']) for hostConfig in currentHostConfig]
 
-        # Cycle through all known hostnames and stop whenever one of them returns the list of all instances
-        # The expected behavior is that the API would return the same list when used with any hostname, but
-        # adding the looping as a precaution in case one host goes down suddenly
+        return hosts
+
+    def _actionRefreshSystemInstanceList(self):
+        self.tracer.info("[%s] getting list of system instances" % self.fullName)
+
+        hosts = self._get_hosts()
+
+        # Use last known hosts to fetch the updated list of hosts
+        # Walk through the known hostnames and stop whenever any of them returns the list of all instances
         isSuccess = False
         instanceList = []
         for host in hosts:
@@ -182,7 +186,7 @@ class sapServiceProviderCheck(ProviderCheck):
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
 
-            currentTimestamp = datetime.now().isoformat()
+            currentTimestamp = self._get_formatted_timestamp()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
                 instance['SID'] = self.providerInstance.sapSid
@@ -208,7 +212,7 @@ class sapServiceProviderCheck(ProviderCheck):
 
         # TODO: Implement logic
         # Get instances list
-        sapInstances = self._get_instances()
+        sapInstances = self._get_hosts()
         # Filter instances based on features
         sapInstances = self._filter_instances(sapInstances, eligibleFeatures)
         # Call web service
@@ -232,10 +236,10 @@ class sapServiceProviderCheck(ProviderCheck):
     def updateState(self):
         self.tracer.info("[%s] updating internal state" % self.fullName)
 
-        # update last run local.
+        # update last run local
         lastRunLocal = datetime.utcnow()
         self.state['lastRunLocal'] = lastRunLocal
-        # update last run server.
+        # update last run server
         self.state['lastRunServer'] = self.lastRunTime
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
