@@ -28,6 +28,54 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "ABAPGetWPTable",
+            "description": "SAP NetWeaver ABAPGetWPTable",
+            "customLog": "SapService_ABAPGetWPTable",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteWebServiceRequest",
+                    "parameters": {
+                        "apiName": "ABAPGetWPTable",
+                        "eligibleFeatures": ["ABAP"]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "GetQueueStatistic",
+            "description": "SAP NetWeaver GetQueueStatistic",
+            "customLog": "SapService_GetQueueStatistic",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteWebServiceRequest",
+                    "parameters": {
+                        "apiName": "GetQueueStatistic",
+                        "eligibleFeatures": ["MESSAGESERVER"]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "EnqGetStatistic",
+            "description": "SAP NetWeaver EnqGetStatistic",
+            "customLog": "SapService_EnqGetStatistic",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": false,
+            "actions": [
+                {
+                    "type": "ExecuteEnqGetStatistic",
+                    "parameters": {
+                        "apiName": "EnqGetStatistic",
+                        "eligibleFeatures": ["MESSAGESERVER"]
+                    }
+                }
+            ]
         }
     ]
 }

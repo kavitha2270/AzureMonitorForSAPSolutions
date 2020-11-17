@@ -5,6 +5,7 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta, time
+from typing import Any, Callable
 
 # SOAP client modules
 from suds.client import Client
@@ -153,6 +154,9 @@ class sapServiceProviderCheck(ProviderCheck):
 
         return hosts
 
+    def _parse_result(self, apiName: str, result: object) -> list:
+        return [Client.dict(result)]
+
     def _parse_results(self, apiName: str, results: list) -> list:
         parsed_results = []
         if 'item' in results:
@@ -190,7 +194,7 @@ class sapServiceProviderCheck(ProviderCheck):
 
         return instanceList
 
-    def _filter_instances(self, sapInstances, eligibleFeatures) -> list:
+    def _filter_instances(self, sapInstances: list, eligibleFeatures: list) -> list:
         self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, eligibleFeatures))
 
         # Only keep instance if the instance supports at least 1 of the eligible features
@@ -215,7 +219,7 @@ class sapServiceProviderCheck(ProviderCheck):
                 instance['timestamp'] = currentTimestamp
                 instance['SID'] = self.providerInstance.sapSid
 
-            self.lastResult.extend(instanceList)
+            self.lastResult = instanceList
 
         # Update internal state
         if not self.updateState():
@@ -223,8 +227,11 @@ class sapServiceProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
-    def _actionExecuteWebServiceRequest(self, apiName, eligibleFeatures) -> None:
+    def _actionExecuteWebServiceRequest(self, apiName: str, eligibleFeatures: list, parser: Callable[[str, Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
+
+        if parser is None:
+            parser = self._parse_results
 
         # Get instances
         if 'hostConfig' in self.providerInstance.state:
@@ -240,7 +247,7 @@ class sapServiceProviderCheck(ProviderCheck):
         for instance in sapInstances:
             results = self.providerInstance.callSoapApi(instance['hostname'], instance['httpsPort'], apiName)
             if len(results) != 0:
-                parsed_results = self._parse_results(apiName, results)
+                parsed_results = parser(apiName, results)
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
                     result['instanceNr'] = instance['instanceNr']
@@ -248,13 +255,16 @@ class sapServiceProviderCheck(ProviderCheck):
                     result['timestamp'] = currentTimestamp
                 all_results.extend(parsed_results)
 
-        self.lastResult.extend(all_results)
+        self.lastResult = all_results
 
         # Update internal state
         if not self.updateState():
             raise Exception("[%s] failed to update state" % self.fullName)
 
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
+
+    def _actionExecuteEnqGetStatistic(self, apiName: str, eligibleFeatures: list) -> None:
+        self._actionExecuteWebServiceRequest(apiName, eligibleFeatures, self._parse_result)
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
