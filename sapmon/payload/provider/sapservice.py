@@ -227,7 +227,7 @@ class sapServiceProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
-    def _actionExecuteWebServiceRequest(self, apiName: str, eligibleFeatures: list, parser: Callable[[str, Any], list] = None) -> None:
+    def _executeWebServiceRequest(self, apiName: str, eligibleFeatures: list, parser: Callable[[str, Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
         if parser is None:
@@ -264,10 +264,10 @@ class sapServiceProviderCheck(ProviderCheck):
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, eligibleFeatures: list) -> None:
-        self._actionExecuteWebServiceRequest(apiName, eligibleFeatures, self._parse_results)
+        self._executeWebServiceRequest(apiName, eligibleFeatures, self._parse_results)
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, eligibleFeatures: list) -> None:
-        self._actionExecuteWebServiceRequest(apiName, eligibleFeatures, self._parse_result)
+        self._executeWebServiceRequest(apiName, eligibleFeatures, self._parse_result)
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
