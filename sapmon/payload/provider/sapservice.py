@@ -27,7 +27,7 @@ class unverifiedHttpsTransport(suds.transport.http.HttpTransport):
     def u2handlers(self) -> suds.transport.http.HttpTransport:
         handlers = super(unverifiedHttpsTransport, self).u2handlers()
         context = ssl.create_default_context()
-        context.check_hostName = False
+        context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
         handlers.append(urllib.request.HTTPSHandler(context=context))
         return handlers
@@ -79,46 +79,55 @@ class sapServiceProviderInstance(ProviderInstance):
         return True
 
     def getPortFromInstanceNr(self, instanceNr: str) -> str:
-        return '5%s14' % self.sapInstanceNr
+        return '5%s14' % self.sapInstanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
     def _establishConnection(self, hostName: str = None, port: str = None) -> Client:
         if not hostName:
             hostName = self.sapHostName
         if not port:
-            port = self.getPortFromInstanceNr(self.sapInstanceNr) # Default https port is of the form 5<NR>14
+            port = self.getPortFromInstanceNr(self.sapInstanceNr)
+
+        self.tracer.info("[%s] connecting to hostName: %s and port: %s" % (self.fullName, hostName, port))
 
         try:
             url = 'https://%s:%s/?wsdl' % (hostName, port)
+            self.tracer.debug("[%s] making call to url: %s" % (self.fullName, url))
             client = Client(url, transport=unverifiedHttpsTransport())
             return client
         except Exception as e:
-            self.tracer.error("Error while connecting to hostName: %s and port: %s: %s" % (hostName, port, e))
+            self.tracer.error("[%s] error while connecting to hostName: %s and port: %s: %s" % (self.fullName, hostName, port, e))
             raise e
 
     def callSoapApi(self, hostName: str, port: str, apiName: str) -> str:
+        self.tracer.info("[%s] executing SOAP API: %s for hostName: %s and port: %s: %s" % (self.fullName, apiName, hostName, port))
+
         try:
             client = self._establishConnection(hostName, port)
+            # Due to a bug in the exception handling in the suds client library, it doesn't honor
+            # the default fallback parameter on getattr() instead of throwing an exception
+            # So we have to resort to capturing the exception instead of handling it with conditional check
+            # on the method return value
             method = getattr(client.service, apiName)
             result = method()
             return result
         except Exception as e:
-            self.tracer.error("Error while calling SOAP API: %s for hostName: %s and port: %s: %s" % (apiName, hostName, port, e))
+            self.tracer.error("[%s] error while calling SOAP API: %s for hostName: %s and port: %s: %s" % (self.fullName, apiName, hostName, port, e))
             raise e
 
     def validate(self) -> bool:
-        self.tracer.info("connecting to sap with host name (%s) to test SOAP API connectivity.")
+        self.tracer.info("[%s] connecting to sap to test SOAP API connectivity" % self.fullName)
 
         try:
             self._establishConnection()
         except Exception as e:
-            self.tracer.error("Error occured while validating provider: %s " % (e))
+            self.tracer.error("[%s] error occured while validating provider: %s " % (self.fullName, e))
             return False
 
         return True
 
 ###########################
 class sapServiceProviderCheck(ProviderCheck):
-    lastResult = list()
+    lastResult = []
 
     def __init__(self,
     provider: ProviderInstance,
@@ -127,25 +136,33 @@ class sapServiceProviderCheck(ProviderCheck):
         self.lastRunTime = None
         return super().__init__(provider, **kwargs)
 
+    def _get_instances(self):
+        result = self.providerInstance.callSoapApi("hanaapp", "50114", "GetSystemInstanceList")
+        return result.item
+
     def _actionProcessSystemInstanceList(self):
-        self.tracer.info("Executing get system instance list web service call.")
-
-        # fetch list from storage. If storage does not have list, use provided
-        # hostName and sysnr.
-        sid = 10 # sample sid assigned, use sid from provider instance once added.
+        self.tracer.info("[%s] getting list of system instances" % self.fullName)
+        # Fetch list from storage. If storage does not have list, use provided
+        # hostName and sysNr.
         if 'hostConfig' not in self.providerInstance.state:
-            self.tracer.debug("no host config persisted yet, using user-provided host name and sysnr.")
+            self.tracer.debug("[%s] no host config persisted yet, using user-provided host name and sysnr" % self.fullName)
             hosts = [(self.providerInstance.sapHostName, \
-                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapSysNr), )]
+                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapSysNr))]
         else:
+            self.tracer.info("[%s] executing get system instance list web service call" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostName'], str(hostConfig['httpsPort']).zfill(2), ) for hostConfig in currentHostConfig]
+            hosts = [(hostConfig['hostName'], hostConfig['httpsPort']) for hostConfig in currentHostConfig]
 
+        # Cycle through all known hostnames and stop whenever one of them returns the list of all instances
+        # The expected behavior is that the API would return the same list when used with any hostname, but
+        # adding the looping as a precaution in case one host goes down suddenly
         isSuccess = False
-        instanceList = list()
+        instanceList = []
         for host in hosts:
+            hostName, port = host[0], host[1]
+
             try:
-                result = self.callSoapApi(host[0], host[1], 'GetSystemInstanceList')
+                result = self.providerInstance.callSoapApi(hostName, port, 'GetSystemInstanceList')
                 if 'item' in result:
                     for itemResult in result['item']:
                         instanceList.append(Client.dict(itemResult))
@@ -154,33 +171,29 @@ class sapServiceProviderCheck(ProviderCheck):
                 isSuccess = True
                 break
             except Exception as e:
-                self.tracer.error("Could not connect to SAP with hostName: %s and port: %s" % (host[0], host[1]))
+                self.tracer.error("[%s] could not connect to SAP with hostName: %s and port: %s" % (self.fullName, hostName, port))
 
         if not isSuccess:
-            raise Exception("Could not connect to any SAP instances for provider: %s with hosts %s." % ( self.providerInstance.fullName,
-                                                                                                         hosts))
+            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s" % \
+                (self.fullName, self.providerInstance.fullName, hosts))
 
-        # update host config, if new list is fetched.
-        # parse dictionary and add current timestamp and SID to data and log it.
+        # Update host config, if new list is fetched
+        # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
 
             currentTimestamp = datetime.now().isoformat()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
-                instance['SID'] = sid
+                instance['SID'] = self.providerInstance.sapSid
 
             self.lastResult.extend(instanceList)
 
         # Update internal state
         if not self.updateState():
-            raise Exception("Failed to update state")
+            raise Exception("[%s] failed to update state" % self.fullName)
 
-        self.tracer.info("successfully fetched system instance list.")
-
-    def _get_instances(self):
-        result = self.providerInstance.callSoapApi("hanaapp", "50114", "GetSystemInstanceList")
-        return result.item
+        self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
     def _filter_instances(self, sapInstances, eligibleFeatures):
         # Only keep instance if at least 1 feature for the instance matches the list of eligible features
@@ -191,7 +204,7 @@ class sapServiceProviderCheck(ProviderCheck):
         return filtered_instances
 
     def _actionExecuteWebServiceRequest(self, apiName, eligibleFeatures):
-        self.tracer.info("executing web service request: %s" % (apiName))
+        self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
         # TODO: Implement logic
         # Get instances list
@@ -206,11 +219,11 @@ class sapServiceProviderCheck(ProviderCheck):
 
         # Update internal state
         if not self.updateState():
-            raise Exception("Failed to update state")
-        self.tracer.info("successfully processed web service request: %s" % (apiName))
+            raise Exception("[%s] failed to update state" % self.fullName)
+        self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
     def generateJsonString(self) -> str:
-        self.tracer.info("[%s] converting result to json string." % self.fullName)
+        self.tracer.info("[%s] converting result to json string" % self.fullName)
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
         self.tracer.debug("[%s] resultJson=%s" % (self.fullName,
                                                    str(resultJsonString)))
