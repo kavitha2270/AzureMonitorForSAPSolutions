@@ -263,6 +263,9 @@ class sapServiceProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
+    def _actionExecuteGenericWebServiceRequest(self, apiName: str, eligibleFeatures: list) -> None:
+        self._actionExecuteWebServiceRequest(apiName, eligibleFeatures, self._parse_results)
+
     def _actionExecuteEnqGetStatistic(self, apiName: str, eligibleFeatures: list) -> None:
         self._actionExecuteWebServiceRequest(apiName, eligibleFeatures, self._parse_result)
 

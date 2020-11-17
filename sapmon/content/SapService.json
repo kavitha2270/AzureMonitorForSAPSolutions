@@ -21,7 +21,7 @@
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
-                    "type": "ExecuteWebServiceRequest",
+                    "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetProcessList",
                         "eligibleFeatures": ["ABAP"]
@@ -37,7 +37,7 @@
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
-                    "type": "ExecuteWebServiceRequest",
+                    "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "ABAPGetWPTable",
                         "eligibleFeatures": ["ABAP"]
@@ -53,7 +53,7 @@
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
-                    "type": "ExecuteWebServiceRequest",
+                    "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetQueueStatistic",
                         "eligibleFeatures": ["MESSAGESERVER"]
