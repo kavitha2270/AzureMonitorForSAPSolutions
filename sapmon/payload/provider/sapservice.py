@@ -1,10 +1,7 @@
 # Python modules
-import hashlib
 import json
 import logging
-import re
-import time
-from datetime import datetime, timedelta, time
+from datetime import datetime
 from typing import Any, Callable
 
 # SOAP client modules
@@ -219,7 +216,7 @@ class sapServiceProviderCheck(ProviderCheck):
                 instance['timestamp'] = currentTimestamp
                 instance['SID'] = self.providerInstance.sapSid
 
-            self.lastResult = instanceList
+        self.lastResult = instanceList
 
         # Update internal state
         if not self.updateState():
