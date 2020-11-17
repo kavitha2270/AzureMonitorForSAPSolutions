@@ -1,29 +1,30 @@
 {
     "checks": [
         {
-            "name": "ProcessSystemInstanceList",
-            "description": "SAP NetWeaver GetSystemInstanceList",
-            "customLog": "SapService_GetSystemInstanceList",
+            "name": "RefreshSystemInstanceList",
+            "description": "SAP NetWeaver RefreshSystemInstanceList",
+            "customLog": "SapService_RefreshSystemInstanceList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
-                    "type": "ProcessSystemInstanceList",
+                    "type": "RefreshSystemInstanceList",
                     "parameters": {}
                 }
             ]
         },
         {
-            "name": "GetSystemInstanceList",
-            "description": "SAP NetWeaver GetSystemInstanceList",
-            "customLog": "SapService_GetSystemInstanceList",
+            "name": "GetProcessList",
+            "description": "SAP NetWeaver GetProcessList",
+            "customLog": "SapService_GetProcessList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
                     "type": "ExecuteWebServiceRequest",
                     "parameters": {
-                        "apiName": "GetSystemInstanceList"
+                        "apiName": "GetProcessList",
+                        "eligibleFeatures": ["ABAP"]
                     }
                 }
             ]

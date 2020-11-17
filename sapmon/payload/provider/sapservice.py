@@ -153,6 +153,16 @@ class sapServiceProviderCheck(ProviderCheck):
 
         return hosts
 
+    def _parse_results(self, apiName: str, results: list) -> list:
+        parsed_results = []
+        if 'item' in results:
+            for itemResult in results['item']:
+                parsed_results.append(Client.dict(itemResult))
+        else:
+            raise AttributeError('%s result does not contain "item" schema' % apiName)
+
+        return parsed_results
+
     def _get_instances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
 
@@ -166,12 +176,9 @@ class sapServiceProviderCheck(ProviderCheck):
             hostname, port = host[0], host[1]
 
             try:
-                result = self.providerInstance.callSoapApi(hostname, port, 'GetSystemInstanceList')
-                if 'item' in result:
-                    for itemResult in result['item']:
-                        instanceList.append(Client.dict(itemResult))
-                else:
-                    raise AttributeError('GetSystemInstanceList result does not contain "item" schema.')
+                apiName = 'GetSystemInstanceList'
+                result = self.providerInstance.callSoapApi(hostname, port, apiName)
+                instanceList = self._parse_results(apiName, result)
                 isSuccess = True
                 break
             except Exception as e:
@@ -183,7 +190,17 @@ class sapServiceProviderCheck(ProviderCheck):
 
         return instanceList
 
-    def _actionRefreshSystemInstanceList(self):
+    def _filter_instances(self, sapInstances, eligibleFeatures) -> list:
+        self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, eligibleFeatures))
+
+        # Only keep instance if the instance supports at least 1 of the eligible features
+        instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
+        filtered_instances = [instance for (instance, instance_features) in instances \
+            if not set(eligibleFeatures).isdisjoint(set(instance_features))]
+
+        return filtered_instances
+
+    def _actionRefreshSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
 
         instanceList = self._get_instances()
@@ -206,31 +223,37 @@ class sapServiceProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
-    def _filter_instances(self, sapInstances, eligibleFeatures):
-        # Only keep instance if at least 1 feature for the instance matches the list of eligible features
-        instances = [(instance, instance.features.split('|')) for instance in sapInstances]
-        filtered_instances = [instance for (instance, instance_features) in instances \
-            if not set(eligibleFeatures).isdisjoint(set(instance_features))]
-
-        return filtered_instances
-
-    def _actionExecuteWebServiceRequest(self, apiName, eligibleFeatures):
+    def _actionExecuteWebServiceRequest(self, apiName, eligibleFeatures) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
-        # TODO: Implement logic
-        # Get instances list
-        sapInstances = self._get_hosts()
-        # Filter instances based on features
+        # Get instances
+        if 'hostConfig' in self.providerInstance.state:
+            sapInstances = self.providerInstance.state['hostConfig']
+        else:
+            sapInstances = self._get_instances()
+
+        # Filter instances down to the ones that support this API
         sapInstances = self._filter_instances(sapInstances, eligibleFeatures)
         # Call web service
-        results = [self.providerInstance.callSoapApi(instance.hostname, instance.httpsPort, apiName) \
-            for instance in sapInstances]
+        all_results = []
+        currentTimestamp = self._get_formatted_timestamp()
+        for instance in sapInstances:
+            results = self.providerInstance.callSoapApi(instance['hostname'], instance['httpsPort'], apiName)
+            if len(results) != 0:
+                parsed_results = self._parse_results(apiName, results)
+                for result in parsed_results:
+                    result['hostname'] = instance['hostname']
+                    result['instanceNr'] = instance['instanceNr']
+                    result['SID'] = self.providerInstance.sapSid
+                    result['timestamp'] = currentTimestamp
+                all_results.extend(parsed_results)
 
-        # Parse result
+        self.lastResult.extend(all_results)
 
         # Update internal state
         if not self.updateState():
             raise Exception("[%s] failed to update state" % self.fullName)
+
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
     def generateJsonString(self) -> str:
@@ -240,7 +263,7 @@ class sapServiceProviderCheck(ProviderCheck):
                                                    str(resultJsonString)))
         return resultJsonString
 
-    def updateState(self):
+    def updateState(self) -> bool:
         self.tracer.info("[%s] updating internal state" % self.fullName)
 
         # update last run local
