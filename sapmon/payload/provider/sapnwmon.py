@@ -30,17 +30,16 @@ class unverifiedHttpsTransport(suds.transport.http.HttpTransport):
         handlers.append(urllib.request.HTTPSHandler(context=context))
         return handlers
 
-class sapServiceProviderInstance(ProviderInstance):
+class sapNWMonProviderInstance(ProviderInstance):
     def __init__(self,
                 tracer: logging.Logger,
                 ctx: Context,
                 providerInstance: Dict[str, str],
                 skipContent: bool = False,
                 **kwargs) -> None:
+        self.sapSid = None
         self.sapHostName = None
-        self.sapSysNr = None
-        self.sapUsername = None
-        self.sapPassword = None
+        self.sapInstanceNr = None
 
         retrySettings = {
          "retries": 3,
@@ -124,7 +123,7 @@ class sapServiceProviderInstance(ProviderInstance):
         return True
 
 ###########################
-class sapServiceProviderCheck(ProviderCheck):
+class sapNWMonProviderCheck(ProviderCheck):
     lastResult = []
 
     def __init__(self,
@@ -143,7 +142,7 @@ class sapServiceProviderCheck(ProviderCheck):
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.debug("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
             hosts = [(self.providerInstance.sapHostName, \
-                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapSysNr))]
+                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
