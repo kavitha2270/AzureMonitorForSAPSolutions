@@ -23,7 +23,8 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetProcessList",
-                        "eligibleFeatures": ["ABAP"]
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "exclude"
                     }
                 }
             ]
@@ -39,7 +40,8 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "ABAPGetWPTable",
-                        "eligibleFeatures": ["ABAP"]
+                        "filterFeatures": ["ABAP"],
+                        "filterType": "include"
                     }
                 }
             ]
@@ -55,7 +57,8 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetQueueStatistic",
-                        "eligibleFeatures": ["ABAP"]
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "exclude"
                     }
                 }
             ]
@@ -71,7 +74,8 @@
                     "type": "ExecuteEnqGetStatistic",
                     "parameters": {
                         "apiName": "EnqGetStatistic",
-                        "eligibleFeatures": ["ENQUE"]
+                        "filterFeatures": ["ENQUE"],
+                        "filterType": "include"
                     }
                 }
             ]

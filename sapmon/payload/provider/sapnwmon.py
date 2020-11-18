@@ -190,13 +190,21 @@ class sapNWMonProviderCheck(ProviderCheck):
 
         return instanceList
 
-    def _filter_instances(self, sapInstances: list, eligibleFeatures: list) -> list:
-        self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, eligibleFeatures))
+    def _filter_instances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
+        self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, filterFeatures))
 
-        # Only keep instance if the instance supports at least 1 of the eligible features
         instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
-        filtered_instances = [instance for (instance, instance_features) in instances \
-            if not set(eligibleFeatures).isdisjoint(set(instance_features))]
+
+        # Inclusion filter
+        # Only keep instance if the instance supports at least 1 of the filter features
+        if filterType == "include":
+            filtered_instances = [instance for (instance, instance_features) in instances \
+                if not set(filterFeatures).isdisjoint(set(instance_features))]
+        else:
+        # Exclusion filter
+        # Only keep instance if the instance does not support any of the filter features
+            filtered_instances = [instance for (instance, instance_features) in instances \
+                if set(filterFeatures).isdisjoint(set(instance_features))]
 
         return filtered_instances
 
@@ -223,7 +231,7 @@ class sapNWMonProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
-    def _executeWebServiceRequest(self, apiName: str, eligibleFeatures: list, parser: Callable[[str, Any], list] = None) -> None:
+    def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[str, Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
         if parser is None:
@@ -236,7 +244,7 @@ class sapNWMonProviderCheck(ProviderCheck):
             sapInstances = self._get_instances()
 
         # Filter instances down to the ones that support this API
-        sapInstances = self._filter_instances(sapInstances, eligibleFeatures)
+        sapInstances = self._filter_instances(sapInstances, filterFeatures, filterType)
         # Call web service
         all_results = []
         currentTimestamp = self._get_formatted_timestamp()
@@ -259,11 +267,11 @@ class sapNWMonProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
-    def _actionExecuteGenericWebServiceRequest(self, apiName: str, eligibleFeatures: list) -> None:
-        self._executeWebServiceRequest(apiName, eligibleFeatures, self._parse_results)
+    def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parse_results)
 
-    def _actionExecuteEnqGetStatistic(self, apiName: str, eligibleFeatures: list) -> None:
-        self._executeWebServiceRequest(apiName, eligibleFeatures, self._parse_result)
+    def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parse_result)
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
