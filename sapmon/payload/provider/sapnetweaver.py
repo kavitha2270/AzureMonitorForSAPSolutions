@@ -30,7 +30,7 @@ class unverifiedHttpsTransport(suds.transport.http.HttpTransport):
         handlers.append(urllib.request.HTTPSHandler(context=context))
         return handlers
 
-class sapNWMonProviderInstance(ProviderInstance):
+class sapNetWeaverProviderInstance(ProviderInstance):
     def __init__(self,
                 tracer: logging.Logger,
                 ctx: Context,
@@ -42,9 +42,9 @@ class sapNWMonProviderInstance(ProviderInstance):
         self.sapInstanceNr = None
 
         retrySettings = {
-         "retries": 3,
-         "delayInSeconds": 1,
-         "backoffMultiplier": 2
+            "retries": 3,
+            "delayInSeconds": 1,
+            "backoffMultiplier": 2
         }
 
         super().__init__(tracer,
@@ -100,7 +100,7 @@ class sapNWMonProviderInstance(ProviderInstance):
 
         try:
             client = self._establishConnection(hostname, port)
-            # Due to a bug in the exception handling in the suds client library, it doesn't honor
+            # Due to a bug in exception handling in the suds client library, it doesn't honor
             # the default fallback parameter on getattr() instead of throwing an exception
             # So we have to resort to capturing the exception instead of handling it with conditional check
             # on the method return value
@@ -123,12 +123,12 @@ class sapNWMonProviderInstance(ProviderInstance):
         return True
 
 ###########################
-class sapNWMonProviderCheck(ProviderCheck):
+class sapNetweaverProviderCheck(ProviderCheck):
     lastResult = []
 
     def __init__(self,
-    provider: ProviderInstance,
-    **kwargs
+        provider: ProviderInstance,
+        **kwargs
     ):
         self.lastRunTime = None
         return super().__init__(provider, **kwargs)
@@ -208,7 +208,7 @@ class sapNWMonProviderCheck(ProviderCheck):
 
         return filtered_instances
 
-    def _actionRefreshSystemInstanceList(self) -> None:
+    def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
 
         instanceList = self._get_instances()
@@ -237,7 +237,7 @@ class sapNWMonProviderCheck(ProviderCheck):
         if parser is None:
             parser = self._parse_results
 
-        # Get instances
+        # Use cached list of instances if available since they don't change that frequently; else fetch afresh
         if 'hostConfig' in self.providerInstance.state:
             sapInstances = self.providerInstance.state['hostConfig']
         else:
@@ -245,6 +245,9 @@ class sapNWMonProviderCheck(ProviderCheck):
 
         # Filter instances down to the ones that support this API
         sapInstances = self._filter_instances(sapInstances, filterFeatures, filterType)
+        if len(sapInstances) == 0:
+            self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
+
         # Call web service
         all_results = []
         currentTimestamp = self._get_formatted_timestamp()
@@ -259,6 +262,8 @@ class sapNWMonProviderCheck(ProviderCheck):
                     result['timestamp'] = currentTimestamp
                 all_results.extend(parsed_results)
 
+        if len(all_results) == 0:
+            self.tracer.info("[%s] no results found for: %s" % (self.fullName, apiName))
         self.lastResult = all_results
 
         # Update internal state

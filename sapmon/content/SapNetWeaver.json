@@ -1,21 +1,21 @@
 {
     "checks": [
         {
-            "name": "RefreshSystemInstanceList",
-            "description": "SAP NetWeaver RefreshSystemInstanceList",
-            "customLog": "SapNWMon_GetSystemInstanceList",
+            "name": "GetSystemInstanceList",
+            "description": "SAP NetWeaver GetSystemInstanceList",
+            "customLog": "SapNetWeaver_GetSystemInstanceList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
                 {
-                    "type": "RefreshSystemInstanceList"
+                    "type": "GetSystemInstanceList"
                 }
             ]
         },
         {
             "name": "GetProcessList",
             "description": "SAP NetWeaver GetProcessList",
-            "customLog": "SapNWMon_GetProcessList",
+            "customLog": "SapNetWeaver_GetProcessList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
@@ -23,7 +23,7 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetProcessList",
-                        "filterFeatures": ["ENQUE"],
+                        "filterFeatures": ["MESSAGESERVER", "ENQUE"],
                         "filterType": "exclude"
                     }
                 }
@@ -32,7 +32,7 @@
         {
             "name": "ABAPGetWPTable",
             "description": "SAP NetWeaver ABAPGetWPTable",
-            "customLog": "SapNWMon_ABAPGetWPTable",
+            "customLog": "SapNetWeaver_ABAPGetWPTable",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
@@ -49,7 +49,7 @@
         {
             "name": "GetQueueStatistic",
             "description": "SAP NetWeaver GetQueueStatistic",
-            "customLog": "SapNWMon_GetQueueStatistic",
+            "customLog": "SapNetWeaver_GetQueueStatistic",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
@@ -57,7 +57,7 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetQueueStatistic",
-                        "filterFeatures": ["ENQUE"],
+                        "filterFeatures": ["MESSAGESERVER", "ENQUE"],
                         "filterType": "exclude"
                     }
                 }
@@ -66,7 +66,7 @@
         {
             "name": "EnqGetStatistic",
             "description": "SAP NetWeaver EnqGetStatistic",
-            "customLog": "SapNWMon_EnqGetStatistic",
+            "customLog": "SapNetWeaver_EnqGetStatistic",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": false,
             "actions": [
