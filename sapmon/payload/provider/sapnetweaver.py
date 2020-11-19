@@ -62,16 +62,20 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
             return False
-        
+
         self.sapHostName = self.providerProperties.get("sapHostName", None)
         if not self.sapHostName:
             self.tracer.error("[%s] sapHostName cannot be empty" % self.fullName)
             return False
-        
-        self.sapInstanceNr = self.providerProperties.get("sapInstanceNr", None)
-        if not self.sapInstanceNr:
+
+        instanceNr = self.providerProperties.get("sapInstanceNr", None)
+        if not instanceNr:
             self.tracer.error("[%s] sapInstanceNr cannot be empty" % self.fullName)
             return False
+        if not instanceNr.isdecimal() or int(instanceNr) < 0 or int(instanceNr) > 98:
+            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98" % self.fullName)
+            return False
+        self.sapInstanceNr = instanceNr.zfill(2)
 
         return True
 
