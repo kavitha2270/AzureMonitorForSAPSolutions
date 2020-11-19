@@ -291,11 +291,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def updateState(self) -> bool:
         self.tracer.info("[%s] updating internal state" % self.fullName)
-
-        # update last run local
         lastRunLocal = datetime.utcnow()
         self.state['lastRunLocal'] = lastRunLocal
-        # update last run server
-        self.state['lastRunServer'] = self.lastRunTime
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
