@@ -73,7 +73,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr cannot be empty" % self.fullName)
             return False
         if not instanceNr.isdecimal() or int(instanceNr) < 0 or int(instanceNr) > 98:
-            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98" % self.fullName)
+            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
 
