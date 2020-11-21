@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Callable
+from suds import WebFault
 
 # SOAP client modules
 from suds.client import Client
@@ -92,7 +93,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
 
         try:
             url = 'https://%s:%s/?wsdl' % (hostname, port)
-            self.tracer.debug("[%s] making call to url: %s" % (self.fullName, url))
+            self.tracer.debug("[%s] establishing connection to url: %s" % (self.fullName, url))
             client = Client(url, transport=unverifiedHttpsTransport())
             return client
         except Exception as e:
@@ -118,13 +119,40 @@ class sapNetWeaverProviderInstance(ProviderInstance):
     def validate(self) -> bool:
         self.tracer.info("[%s] connecting to sap to test SOAP API connectivity" % self.fullName)
 
+        # HACK: Load content json to fetch the list of APIs in the checks
+        self.initContent()
+
         try:
-            self._establishConnection()
+            client = self._establishConnection()
         except Exception as e:
-            self.tracer.error("[%s] error occured while validating provider: %s " % (self.fullName, e))
+            self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
             return False
 
-        return True
+        # Ensure that all APIs in the checks are valid and are marked as unprotected
+        # Some APIs are specific to the instance type and throw a WebFault if run against
+        # an incompatible instance type.
+        # However, here we are only looking for a 401 Unauthorized response for the case
+        # where the API has not been marked as unprotected. In this case, the server throws
+        # a regular Exception.
+        # We take care of calling the API on only the compatible instance types during the
+        # Monitor phase.
+        isValid = True
+        for check in self.checks:
+            for action in check.actions:
+                apiName = check.name
+                try:
+                    method = getattr(client.service, apiName)
+                    result = method()
+                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+                except WebFault as e:
+                    # Ignore since this exception implies that the method is unprotected
+                    self.tracer.info("[%s] validated api %s. Ignoring WebFault: %s" % (self.fullName, apiName, e))
+                    pass
+                except Exception as e:
+                    isValid = False
+                    self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
+
+        return isValid
 
 ###########################
 class sapNetweaverProviderCheck(ProviderCheck):
