@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 from suds import WebFault
+from retry.api import retry_call
 
 # SOAP client modules
 from suds.client import Client
@@ -94,7 +95,11 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         try:
             url = 'https://%s:%s/?wsdl' % (hostname, port)
             self.tracer.debug("[%s] establishing connection to url: %s" % (self.fullName, url))
-            client = Client(url, transport=unverifiedHttpsTransport())
+            tries = self.retrySettings["retries"]
+            delay = self.retrySettings["delayInSeconds"]
+            backoff = self.retrySettings["backoffMultiplier"]
+            method = lambda: Client(url, transport=unverifiedHttpsTransport())
+            client = retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
             return client
         except Exception as e:
             self.tracer.error("[%s] error while connecting to hostname: %s and port: %s: %s" % (self.fullName, hostname, port, e))
@@ -109,7 +114,11 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             # the default fallback parameter on getattr() instead of throwing an exception
             # So we have to resort to capturing the exception instead of handling it with conditional check
             # on the method return value
+            tries = self.retrySettings["retries"]
+            delay = self.retrySettings["delayInSeconds"]
+            backoff = self.retrySettings["backoffMultiplier"]
             method = getattr(client.service, apiName)
+            retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
             result = method()
             return result
         except Exception as e:
@@ -138,19 +147,21 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         # Monitor phase.
         isValid = True
         for check in self.checks:
-            for action in check.actions:
-                apiName = check.name
-                try:
-                    method = getattr(client.service, apiName)
-                    result = method()
-                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
-                except WebFault as e:
-                    # Ignore since this exception implies that the method is unprotected
-                    self.tracer.info("[%s] validated api %s. Ignoring WebFault: %s" % (self.fullName, apiName, e))
-                    pass
-                except Exception as e:
-                    isValid = False
-                    self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
+            apiName = check.name
+            try:
+                tries = self.retrySettings["retries"]
+                delay = self.retrySettings["delayInSeconds"]
+                backoff = self.retrySettings["backoffMultiplier"]
+                method = getattr(client.service, apiName)
+                retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+                self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+            except WebFault as e:
+                # Ignore since this exception implies that the method is unprotected
+                self.tracer.info("[%s] validated api %s. Ignoring WebFault: %s" % (self.fullName, apiName, e))
+                pass
+            except Exception as e:
+                isValid = False
+                self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
 
         return isValid
 
