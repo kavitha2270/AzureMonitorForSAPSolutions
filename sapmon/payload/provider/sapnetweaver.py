@@ -73,7 +73,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         return True
 
     def getPortFromInstanceNr(self, instanceNr: str) -> str:
-        return '5%s14' % self.sapInstanceNr # As per SAP documentation, default https port is of the form 5<NR>14
+        return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
     def _establishConnection(self, hostname: str = None, port: str = None) -> Client:
         if not hostname:
