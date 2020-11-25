@@ -3,14 +3,13 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Callable
-from suds import WebFault
 from retry.api import retry_call
+from requests import Session
 
-# SOAP client modules
-from suds.client import Client
-import urllib.request
-import ssl
-import suds.transport.http
+# SOAP Client modules
+from zeep import Client
+from zeep import helpers
+from zeep.transports import Transport
 
 # Payload modules
 from const import *
@@ -18,19 +17,11 @@ from helper.azure import *
 from helper.context import *
 from helper.tools import *
 from provider.base import ProviderInstance, ProviderCheck
-from typing import Dict, List
+from typing import Dict
 
-class unverifiedHttpsTransport(suds.transport.http.HttpTransport):
-    def __init__(self, *args, **kwargs) -> None:
-        super(unverifiedHttpsTransport, self).__init__(*args, **kwargs)
-
-    def u2handlers(self) -> suds.transport.http.HttpTransport:
-        handlers = super(unverifiedHttpsTransport, self).u2handlers()
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        handlers.append(urllib.request.HTTPSHandler(context=context))
-        return handlers
+# Suppress SSLError warning due to missing SAP server certificate
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class sapNetWeaverProviderInstance(ProviderInstance):
     def __init__(self,
@@ -94,11 +85,14 @@ class sapNetWeaverProviderInstance(ProviderInstance):
 
         try:
             url = 'https://%s:%s/?wsdl' % (hostname, port)
-            self.tracer.debug("[%s] establishing connection to url: %s" % (self.fullName, url))
+            self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
             tries = self.retrySettings["retries"]
             delay = self.retrySettings["delayInSeconds"]
             backoff = self.retrySettings["backoffMultiplier"]
-            method = lambda: Client(url, transport=unverifiedHttpsTransport())
+
+            session = Session()
+            session.verify = False
+            method = lambda: Client(url, transport=Transport(session=session))
             client = retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
             return client
         except Exception as e:
@@ -145,23 +139,25 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         # a regular Exception.
         # We take care of calling the API on only the compatible instance types during the
         # Monitor phase.
+
+        # Check that the APIs to be called are valid and have been marked as unprotected
         isValid = True
         for check in self.checks:
             apiName = check.name
-            try:
+            method = getattr(client.service, apiName, None) # Returning None when API not found
+            if method is None:
+                self.tracer.error("[%s] validation failure: api %s does not exist" % (self.fullName, apiName))
+                isValid = False
+            else:
                 tries = self.retrySettings["retries"]
                 delay = self.retrySettings["delayInSeconds"]
                 backoff = self.retrySettings["backoffMultiplier"]
-                method = getattr(client.service, apiName)
-                retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
-                self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
-            except WebFault as e:
-                # Ignore since this exception implies that the method is unprotected
-                self.tracer.info("[%s] validated api %s. Ignoring WebFault: %s" % (self.fullName, apiName, e))
-                pass
-            except Exception as e:
-                isValid = False
-                self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
+                try:
+                    retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+                except Exception as e:
+                    isValid = False
+                    self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
 
         return isValid
 
@@ -183,7 +179,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Fetch last known list from storage. If storage does not have list, use provided
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
-            self.tracer.debug("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
+            self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
             hosts = [(self.providerInstance.sapHostName, \
                 self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
         else:
@@ -194,17 +190,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return hosts
 
     def _parse_result(self, apiName: str, result: object) -> list:
-        return [Client.dict(result)]
+        return [helpers.serialize_object(result, dict)]
 
     def _parse_results(self, apiName: str, results: list) -> list:
-        parsed_results = []
-        if 'item' in results:
-            for itemResult in results['item']:
-                parsed_results.append(Client.dict(itemResult))
-        else:
-            raise AttributeError('%s result does not contain "item" schema' % apiName)
-
-        return parsed_results
+        return helpers.serialize_object(results, dict)
 
     def _get_instances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
