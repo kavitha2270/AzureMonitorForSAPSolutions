@@ -51,11 +51,6 @@ class sapNetWeaverProviderInstance(ProviderInstance):
     parse provider properties and get sid, host name and instance number
     """
     def parseProperties(self) -> bool:
-        self.sapSid = self.providerProperties.get("sapSid", None)
-        if not self.sapSid:
-            self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
-            return False
-
         self.sapHostName = self.providerProperties.get("sapHostName", None)
         if not self.sapHostName:
             self.tracer.error("[%s] sapHostName cannot be empty" % self.fullName)
@@ -69,6 +64,11 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
+
+        self.sapSid = self.metadata.get("sapSid", None)
+        if not self.sapSid:
+            self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
+            return False
 
         return True
 
