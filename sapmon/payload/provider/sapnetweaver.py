@@ -10,6 +10,7 @@ from requests import Session
 from zeep import Client
 from zeep import helpers
 from zeep.transports import Transport
+from zeep.exceptions import Fault
 
 # Payload modules
 from const import *
@@ -75,7 +76,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
     def getPortFromInstanceNr(self, instanceNr: str) -> str:
         return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
-    def _establishConnection(self, hostname: str = None, port: str = None) -> Client:
+    def getClient(self, hostname: str = None, port: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
         if not port:
@@ -99,15 +100,10 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] error while connecting to hostname: %s and port: %s: %s" % (self.fullName, hostname, port, e))
             raise e
 
-    def callSoapApi(self, hostname: str, port: str, apiName: str) -> str:
-        self.tracer.info("[%s] executing SOAP API: %s for hostname: %s and port: %s" % (self.fullName, apiName, hostname, port))
+    def callSoapApi(self, client: Client, apiName: str) -> str:
+        self.tracer.info("[%s] executing SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
 
         try:
-            client = self._establishConnection(hostname, port)
-            # Due to a bug in exception handling in the suds client library, it doesn't honor
-            # the default fallback parameter on getattr() instead of throwing an exception
-            # So we have to resort to capturing the exception instead of handling it with conditional check
-            # on the method return value
             tries = self.retrySettings["retries"]
             delay = self.retrySettings["delayInSeconds"]
             backoff = self.retrySettings["backoffMultiplier"]
@@ -116,7 +112,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             result = method()
             return result
         except Exception as e:
-            self.tracer.error("[%s] error while calling SOAP API: %s for hostname: %s and port: %s: %s" % (self.fullName, apiName, hostname, port, e))
+            self.tracer.info("[%s] error while calling SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
             raise e
 
     def validate(self) -> bool:
@@ -126,21 +122,17 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         self.initContent()
 
         try:
-            client = self._establishConnection()
+            client = self.getClient()
         except Exception as e:
             self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
             return False
 
-        # Ensure that all APIs in the checks are valid and are marked as unprotected
-        # Some APIs are specific to the instance type and throw a WebFault if run against
-        # an incompatible instance type.
-        # However, here we are only looking for a 401 Unauthorized response for the case
-        # where the API has not been marked as unprotected. In this case, the server throws
-        # a regular Exception.
-        # We take care of calling the API on only the compatible instance types during the
-        # Monitor phase.
-
-        # Check that the APIs to be called are valid and have been marked as unprotected
+        # Ensure that all APIs in the checks are valid and are marked as unprotected.
+        # Some APIs are compatible with only specific instance types and throw a Fault if run against
+        # an incompatible one.
+        # However, here we suppress all errors except Unauthorized since the Monitor phase takes
+        # care of calling the API against the right instance type. As long as we don't get an
+        # Unauthorized error, we know we can safely call them during the Monitor phase.
         isValid = True
         for check in self.checks:
             apiName = check.name
@@ -149,15 +141,17 @@ class sapNetWeaverProviderInstance(ProviderInstance):
                 self.tracer.error("[%s] validation failure: api %s does not exist" % (self.fullName, apiName))
                 isValid = False
             else:
-                tries = self.retrySettings["retries"]
-                delay = self.retrySettings["delayInSeconds"]
-                backoff = self.retrySettings["backoffMultiplier"]
                 try:
-                    retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+                    self.callSoapApi(client, apiName)
                     self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+                except Fault as e:
+                    if (e.code == "SOAP-ENV:Client" and e.message == "HTTP Error: 'Unauthorized'"):
+                        isValid = False
+                        self.tracer.error("[%s] api %s is not marked as unprotected: %s " % (self.fullName, apiName, e))
+                    else:
+                        self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
                 except Exception as e:
-                    isValid = False
-                    self.tracer.error("[%s] error occured while invoking api %s: %s " % (self.fullName, apiName, e))
+                    self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
 
         return isValid
 
@@ -189,10 +183,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         return hosts
 
-    def _parse_result(self, apiName: str, result: object) -> list:
+    def _parse_result(self, result: object) -> list:
         return [helpers.serialize_object(result, dict)]
 
-    def _parse_results(self, apiName: str, results: list) -> list:
+    def _parse_results(self, results: list) -> list:
         return helpers.serialize_object(results, dict)
 
     def _get_instances(self) -> list:
@@ -209,8 +203,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
             try:
                 apiName = 'GetSystemInstanceList'
-                result = self.providerInstance.callSoapApi(hostname, port, apiName)
-                instanceList = self._parse_results(apiName, result)
+                client = self.providerInstance.getClient(hostname, port)
+                result = self.providerInstance.callSoapApi(client, apiName)
+                instanceList = self._parse_results(result)
                 isSuccess = True
                 break
             except Exception as e:
@@ -263,7 +258,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
 
-    def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[str, Any], list] = None) -> None:
+    def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
         if parser is None:
@@ -284,9 +279,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         all_results = []
         currentTimestamp = self._get_formatted_timestamp()
         for instance in sapInstances:
-            results = self.providerInstance.callSoapApi(instance['hostname'], instance['httpsPort'], apiName)
+            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'])
+            results = self.providerInstance.callSoapApi(client, apiName)
             if len(results) != 0:
-                parsed_results = parser(apiName, results)
+                parsed_results = parser(results)
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
                     result['instanceNr'] = instance['instanceNr']
