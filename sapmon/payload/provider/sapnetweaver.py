@@ -108,8 +108,7 @@ class sapNetWeaverProviderInstance(ProviderInstance):
             delay = self.retrySettings["delayInSeconds"]
             backoff = self.retrySettings["backoffMultiplier"]
             method = getattr(client.service, apiName)
-            retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
-            result = method()
+            result = retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
             return result
         except Exception as e:
             self.tracer.info("[%s] error while calling SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
