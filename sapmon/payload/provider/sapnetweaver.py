@@ -3,7 +3,6 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Callable
-from retry.api import retry_call
 from requests import Session
 
 # SOAP Client modules
@@ -87,14 +86,10 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         try:
             url = 'https://%s:%s/?wsdl' % (hostname, port)
             self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
-            tries = self.retrySettings["retries"]
-            delay = self.retrySettings["delayInSeconds"]
-            backoff = self.retrySettings["backoffMultiplier"]
 
             session = Session()
             session.verify = False
-            method = lambda: Client(url, transport=Transport(session=session))
-            client = retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+            client = Client(url, transport=Transport(session=session))
             return client
         except Exception as e:
             self.tracer.error("[%s] error while connecting to hostname: %s and port: %s: %s" % (self.fullName, hostname, port, e))
@@ -104,11 +99,8 @@ class sapNetWeaverProviderInstance(ProviderInstance):
         self.tracer.info("[%s] executing SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
 
         try:
-            tries = self.retrySettings["retries"]
-            delay = self.retrySettings["delayInSeconds"]
-            backoff = self.retrySettings["backoffMultiplier"]
             method = getattr(client.service, apiName)
-            result = retry_call(method, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+            result = method()
             return result
         except Exception as e:
             self.tracer.info("[%s] error while calling SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
