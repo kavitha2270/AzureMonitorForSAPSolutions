@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Callable
+import requests
 from requests import Session
 
 # SOAP Client modules
@@ -74,6 +75,9 @@ class sapNetWeaverProviderInstance(ProviderInstance):
 
     def getPortFromInstanceNr(self, instanceNr: str) -> str:
         return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
+
+    def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
+        return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
     def getClient(self, hostname: str = None, port: str = None) -> Client:
         if not hostname:
@@ -154,7 +158,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         provider: ProviderInstance,
         **kwargs
     ):
-        self.lastRunTime = None
+        self.lastRunServer = None
         return super().__init__(provider, **kwargs)
 
     def _getFormattedTimestamp(self) -> str:
@@ -226,10 +230,33 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         return filtered_instances
 
+    def _getServerTimestamp(self, instances: list) -> datetime:
+        self.tracer.info("[%s] fetching current timestamp from message server")
+        message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
+        date = self._getFormattedTimestamp()
+
+        # Get timestamp from the first message server that returns a valid date
+        for instance in message_server_instances:
+            hostname = instance['hostname']
+            instanceNr = str(instance['instanceNr']).zfill(2)
+            port = self.providerInstance.getMessageServerPortFromInstanceNr(instanceNr)
+            message_server_endpoint = "http://%s:%s/" % (hostname, port)
+
+            try:
+                # We only care about the date in the response header. so we ignore the response body
+                response = requests.get(message_server_endpoint)
+                date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
+                break
+            except Exception as e:
+                self.tracer.error("[%s] suppressing error during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
+
+        return date
+
     def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
 
         instanceList = self._getInstances()
+        self.lastRunServer = self._getServerTimestamp(instanceList)
 
         # Update host config, if new list is fetched
         # Parse dictionary and add current timestamp and SID to data and log it
@@ -239,6 +266,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             currentTimestamp = self._getFormattedTimestamp()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
+                instance['serverTimestamp'] = self.lastRunServer.isoformat()
                 instance['SID'] = self.providerInstance.sapSid
 
         self.lastResult = instanceList
@@ -261,6 +289,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
         else:
             sapInstances = self._getInstances()
 
+        self.lastRunServer = self._getServerTimestamp(sapInstances)
+
         # Filter instances down to the ones that support this API
         sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
@@ -277,8 +307,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
                     result['instanceNr'] = instance['instanceNr']
-                    result['SID'] = self.providerInstance.sapSid
                     result['timestamp'] = currentTimestamp
+                    result['serverTimestamp'] = self.lastRunServer.isoformat()
+                    result['SID'] = self.providerInstance.sapSid
                 all_results.extend(parsed_results)
 
         if len(all_results) == 0:
@@ -308,5 +339,6 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.tracer.info("[%s] updating internal state" % self.fullName)
         lastRunLocal = datetime.utcnow()
         self.state['lastRunLocal'] = lastRunLocal
+        self.state['lastRunServer'] = self.lastRunServer
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
