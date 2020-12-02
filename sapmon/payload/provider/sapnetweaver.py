@@ -157,10 +157,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.lastRunTime = None
         return super().__init__(provider, **kwargs)
 
-    def _get_formatted_timestamp(self) -> str:
+    def _getFormattedTimestamp(self) -> str:
         return datetime.now().isoformat()
 
-    def _get_hosts(self) -> list:
+    def _getHosts(self) -> list:
         # Fetch last known list from storage. If storage does not have list, use provided
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
@@ -174,17 +174,17 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         return hosts
 
-    def _parse_result(self, result: object) -> list:
+    def _parseResult(self, result: object) -> list:
         return [helpers.serialize_object(result, dict)]
 
-    def _parse_results(self, results: list) -> list:
+    def _parseResults(self, results: list) -> list:
         return helpers.serialize_object(results, dict)
 
-    def _get_instances(self) -> list:
+    def _getInstances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
 
         instanceList = []
-        hosts = self._get_hosts()
+        hosts = self._getHosts()
 
         # Use last known hosts to fetch the updated list of hosts
         # Walk through the known hostnames and stop whenever any of them returns the list of all instances
@@ -196,7 +196,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 apiName = 'GetSystemInstanceList'
                 client = self.providerInstance.getClient(hostname, port)
                 result = self.providerInstance.callSoapApi(client, apiName)
-                instanceList = self._parse_results(result)
+                instanceList = self._parseResults(result)
                 isSuccess = True
                 break
             except Exception as e:
@@ -208,7 +208,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         return instanceList
 
-    def _filter_instances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
+    def _filterInstances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
         self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, filterFeatures))
 
         instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
@@ -229,14 +229,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
 
-        instanceList = self._get_instances()
+        instanceList = self._getInstances()
 
         # Update host config, if new list is fetched
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
 
-            currentTimestamp = self._get_formatted_timestamp()
+            currentTimestamp = self._getFormattedTimestamp()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
                 instance['SID'] = self.providerInstance.sapSid
@@ -253,22 +253,22 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
         if parser is None:
-            parser = self._parse_results
+            parser = self._parseResults
 
         # Use cached list of instances if available since they don't change that frequently; else fetch afresh
         if 'hostConfig' in self.providerInstance.state:
             sapInstances = self.providerInstance.state['hostConfig']
         else:
-            sapInstances = self._get_instances()
+            sapInstances = self._getInstances()
 
         # Filter instances down to the ones that support this API
-        sapInstances = self._filter_instances(sapInstances, filterFeatures, filterType)
+        sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
             self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
 
         # Call web service
         all_results = []
-        currentTimestamp = self._get_formatted_timestamp()
+        currentTimestamp = self._getFormattedTimestamp()
         for instance in sapInstances:
             client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'])
             results = self.providerInstance.callSoapApi(client, apiName)
@@ -292,10 +292,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
-        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parse_results)
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResults)
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
-        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parse_result)
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResult)
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
