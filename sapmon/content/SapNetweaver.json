@@ -2,8 +2,8 @@
     "checks": [
         {
             "name": "GetSystemInstanceList",
-            "description": "SAP NetWeaver GetSystemInstanceList",
-            "customLog": "SapNetWeaver_GetSystemInstanceList",
+            "description": "SAP Netweaver GetSystemInstanceList",
+            "customLog": "SapNetweaver_GetSystemInstanceList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
@@ -14,8 +14,8 @@
         },
         {
             "name": "GetProcessList",
-            "description": "SAP NetWeaver GetProcessList",
-            "customLog": "SapNetWeaver_GetProcessList",
+            "description": "SAP Netweaver GetProcessList",
+            "customLog": "SapNetweaver_GetProcessList",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
@@ -31,8 +31,8 @@
         },
         {
             "name": "ABAPGetWPTable",
-            "description": "SAP NetWeaver ABAPGetWPTable",
-            "customLog": "SapNetWeaver_ABAPGetWPTable",
+            "description": "SAP Netweaver ABAPGetWPTable",
+            "customLog": "SapNetweaver_ABAPGetWPTable",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
@@ -48,8 +48,8 @@
         },
         {
             "name": "GetQueueStatistic",
-            "description": "SAP NetWeaver GetQueueStatistic",
-            "customLog": "SapNetWeaver_GetQueueStatistic",
+            "description": "SAP Netweaver GetQueueStatistic",
+            "customLog": "SapNetweaver_GetQueueStatistic",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
@@ -65,8 +65,8 @@
         },
         {
             "name": "EnqGetStatistic",
-            "description": "SAP NetWeaver EnqGetStatistic",
-            "customLog": "SapNetWeaver_EnqGetStatistic",
+            "description": "SAP Netweaver EnqGetStatistic",
+            "customLog": "SapNetweaver_EnqGetStatistic",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [

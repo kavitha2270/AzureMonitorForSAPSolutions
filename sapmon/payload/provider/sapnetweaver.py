@@ -24,7 +24,7 @@ from typing import Dict
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-class sapNetWeaverProviderInstance(ProviderInstance):
+class sapNetweaverProviderInstance(ProviderInstance):
     def __init__(self,
                 tracer: logging.Logger,
                 ctx: Context,
