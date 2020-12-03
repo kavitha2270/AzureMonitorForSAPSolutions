@@ -5,6 +5,7 @@ from helper.context import *
 from provider.saphana import *
 from provider.prometheus import *
 from provider.sqlserver import *
+from provider.sapnetweaver import *
 
 availableProviders = {
                         "SapHana": (saphanaProviderInstance, saphanaProviderCheck),
@@ -12,7 +13,8 @@ availableProviders = {
                         "PrometheusGeneric": (prometheusProviderInstance, prometheusProviderCheck),
                         "PrometheusHaCluster": (prometheusProviderInstance, prometheusProviderCheck),
                         "PrometheusNode": (prometheusProviderInstance, prometheusProviderCheck),
-                        "PrometheusOS": (prometheusProviderInstance, prometheusProviderCheck)
+                        "PrometheusOS": (prometheusProviderInstance, prometheusProviderCheck),
+                        "SapNetweaver": (sapNetweaverProviderInstance, sapNetweaverProviderCheck)
                      }
 
 class ProviderFactory(object):
