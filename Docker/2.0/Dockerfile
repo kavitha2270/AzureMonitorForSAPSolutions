@@ -12,7 +12,7 @@ RUN apt-get upgrade -y
 RUN apt-get install git -y
 RUN apt-get install git gcc libffi-dev g++ unixodbc-dev -y
 RUN pip3 install --upgrade pip
-RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-keyvault-secrets azure-identity prometheus_client retry pyodbc zeep
+RUN pip3 install hdbcli azure-storage==0.36.0 azure_storage_logging azure-mgmt-storage azure-keyvault-secrets azure-identity prometheus_client retry pyodbc zeep
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/sapmon/${RELEASE}
 RUN git clone https://github.com/Azure/AzureMonitorForSAPSolutions.git --branch ${RELEASE} ${RELEASE}
