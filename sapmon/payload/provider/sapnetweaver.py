@@ -88,7 +88,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.tracer.info("[%s] connecting to hostname: %s and port: %s" % (self.fullName, hostname, port))
 
         try:
-            url = 'https://%s:%s/?wsdl' % (hostname, port)
+            url = 'https://%s.redmond.corp.microsoft.com:%s/?wsdl' % (hostname, port)
             self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
 
             session = Session()
