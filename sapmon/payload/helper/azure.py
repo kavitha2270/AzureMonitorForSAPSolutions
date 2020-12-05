@@ -1,5 +1,4 @@
 # Azure modules
-from azure.common.credentials import BasicTokenAuthentication
 from azure.mgmt.storage import StorageManagementClient
 from azure.identity import ManagedIdentityCredential
 from azure.keyvault.secrets import SecretClient, KeyVaultSecret
@@ -257,7 +256,7 @@ class AzureStorageQueue():
     # Get the access key to the storage queue
     def getAccessKey(self) -> str:
         self.tracer.info("getting access key for Storage Queue")
-        storageclient = StorageManagementClient(credentials = BasicTokenAuthentication(self.token),
+        storageclient = StorageManagementClient(credential = self.token,
                                                 subscription_id = self.subscriptionId)
 
         # Retrieve keys from storage accounts
