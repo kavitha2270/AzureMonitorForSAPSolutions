@@ -240,7 +240,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             hostname = instance['hostname']
             instanceNr = str(instance['instanceNr']).zfill(2)
             port = self.providerInstance.getMessageServerPortFromInstanceNr(instanceNr)
-            message_server_endpoint = "http://%s:%s/" % (hostname, port)
+            message_server_endpoint = "http://%s.redmond.corp.microsoft.com:%s/" % (hostname, port)
 
             try:
                 # We only care about the date in the response header. so we ignore the response body
