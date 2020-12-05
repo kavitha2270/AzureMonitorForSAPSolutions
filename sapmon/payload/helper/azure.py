@@ -240,7 +240,7 @@ class AzureStorageQueue():
     def __init__(self,
                  tracer: logging.Logger,
                  sapmonId: str,
-                 authToken: str,
+                 msiClientId: str,
                  subscriptionId: str,
                  resourceGroup: str,
                  queueName: str):
@@ -249,7 +249,7 @@ class AzureStorageQueue():
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
         self.name = queueName
         
-        self.token = authToken
+        self.token = ManagedIdentityCredential(client_id = msiClientId)
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
 
