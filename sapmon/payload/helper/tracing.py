@@ -135,7 +135,7 @@ class tracing:
       try:
          storageQueue = AzureStorageQueue(tracer,
                                           ctx.sapmonId,
-                                          ctx.authToken,
+                                          ctx.msiClientId,
                                           ctx.vmInstance["subscriptionId"],
                                           ctx.vmInstance["resourceGroupName"],
                                           queueName = STORAGE_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
@@ -165,7 +165,7 @@ class tracing:
        try:
            storageQueue = AzureStorageQueue(tracer,
                                             ctx.sapmonId,
-                                            ctx.authToken,
+                                            ctx.msiClientId,
                                             ctx.vmInstance["subscriptionId"],
                                             ctx.vmInstance["resourceGroupName"],
                                             CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
@@ -214,7 +214,7 @@ class tracing:
       tracer.info("fetching queue access keys from storage account")
       storageQueue = AzureStorageQueue(tracer,
                                        ctx.sapmonId,
-                                       ctx.authToken,
+                                       ctx.msiClientId,
                                        ctx.vmInstance["subscriptionId"],
                                        ctx.vmInstance["resourceGroupName"],
                                        CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)

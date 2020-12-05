@@ -1,5 +1,4 @@
 # Azure modules
-from azure.common.credentials import BasicTokenAuthentication
 from azure.mgmt.storage import StorageManagementClient
 from azure.identity import ManagedIdentityCredential
 from azure.keyvault.secrets import SecretClient, KeyVaultSecret
@@ -241,7 +240,7 @@ class AzureStorageQueue():
     def __init__(self,
                  tracer: logging.Logger,
                  sapmonId: str,
-                 authToken: str,
+                 msiClientId: str,
                  subscriptionId: str,
                  resourceGroup: str,
                  queueName: str):
@@ -250,14 +249,14 @@ class AzureStorageQueue():
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
         self.name = queueName
         
-        self.token["access_token"] = authToken
+        self.token = ManagedIdentityCredential(client_id = msiClientId)
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
 
     # Get the access key to the storage queue
     def getAccessKey(self) -> str:
         self.tracer.info("getting access key for Storage Queue")
-        storageclient = StorageManagementClient(credentials = BasicTokenAuthentication(self.token),
+        storageclient = StorageManagementClient(credential = self.token,
                                                 subscription_id = self.subscriptionId)
 
         # Retrieve keys from storage accounts
