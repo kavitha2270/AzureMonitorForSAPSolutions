@@ -249,7 +249,7 @@ class AzureStorageQueue():
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
         self.name = queueName
         
-        self.token["access_token"] = authToken
+        self.token = authToken
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
 
