@@ -74,7 +74,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         return True
 
     def getPortFromInstanceNr(self, instanceNr: str) -> str:
-        return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
+        return '5%s13' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
@@ -88,7 +88,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.tracer.info("[%s] connecting to hostname: %s and port: %s" % (self.fullName, hostname, port))
 
         try:
-            url = 'https://%s.redmond.corp.microsoft.com:%s/?wsdl' % (hostname, port)
+            url = 'http://%s.redmond.corp.microsoft.com:%s/?wsdl' % (hostname, port)
             self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
 
             session = Session()
@@ -300,7 +300,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
         for instance in sapInstances:
-            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'])
+            client = self.providerInstance.getClient(instance['hostname'], instance['httpPort'])
             results = self.providerInstance.callSoapApi(client, apiName)
             if len(results) != 0:
                 parsed_results = parser(results)
