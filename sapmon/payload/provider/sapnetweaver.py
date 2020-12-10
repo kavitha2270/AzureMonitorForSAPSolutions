@@ -159,6 +159,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         **kwargs
     ):
         self.lastRunServer = None
+        self.lastRunLocal = None
         return super().__init__(provider, **kwargs)
 
     def _getFormattedTimestamp(self) -> str:
@@ -257,7 +258,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         instanceList = self._getInstances()
         self.lastRunServer = self._getServerTimestamp(instanceList)
-
+        self.lastRunLocal = datetime.utcnow()
         # Update host config, if new list is fetched
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
@@ -290,7 +291,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapInstances = self._getInstances()
 
         self.lastRunServer = self._getServerTimestamp(sapInstances)
-
+        self.lastRunLocal = datetime.utcnow()
         # Filter instances down to the ones that support this API
         sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
@@ -336,9 +337,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return resultJsonString
 
     def updateState(self) -> bool:
-        self.tracer.info("[%s] updating internal state" % self.fullName)
-        lastRunLocal = datetime.utcnow()
-        self.state['lastRunLocal'] = lastRunLocal
+        self.tracer.info("[%s] updating internal state" % self.fullName)        
+        self.state['lastRunLocal'] = self.lastRunLocal
         self.state['lastRunServer'] = self.lastRunServer
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
