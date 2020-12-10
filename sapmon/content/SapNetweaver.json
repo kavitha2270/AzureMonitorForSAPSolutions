@@ -23,7 +23,7 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetProcessList",
-                        "filterFeatures": ["MESSAGESERVER", "ENQUE"],
+                        "filterFeatures": [],
                         "filterType": "exclude"
                     }
                 }
