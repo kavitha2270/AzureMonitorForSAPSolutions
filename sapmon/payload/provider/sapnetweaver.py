@@ -34,6 +34,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.sapSid = None
         self.sapHostName = None
         self.sapInstanceNr = None
+        self.sapSubDomain = None
 
         retrySettings = {
             "retries": 3,
@@ -65,7 +66,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
-
+        self.sapSubDomain = self.providerProperties.get("sapSubDomain", None)
         self.sapSid = self.metadata.get("sapSid", None)
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
@@ -79,9 +80,13 @@ class sapNetweaverProviderInstance(ProviderInstance):
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
-    def getClient(self, hostname: str = None, port: str = None) -> Client:
+    def getClient(self, hostname: str = None, port: str = None, subDomain: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
+        if not subDomain:
+            subDomain = self.sapSubDomain
+            if(subDomain):
+                hostname = hostname + "." + subDomain
         if not port:
             port = self.getPortFromInstanceNr(self.sapInstanceNr)
 
@@ -170,8 +175,13 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            hosts = [(self.providerInstance.sapHostName, \
-                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
+            if 'sapSubDomain' not in self.providerInstance.providerProperties:
+                hosts = [(self.providerInstance.sapHostName, \
+                      self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
+            else:
+                hosts = [(self.providerInstance.sapHostName, \
+                      self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr),
+                      self.providerInstance.sapSubDomain)]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
@@ -196,10 +206,13 @@ class sapNetweaverProviderCheck(ProviderCheck):
         isSuccess = False
         for host in hosts:
             hostname, port = host[0], host[1]
-
+            if len(hosts) > 2:
+                subDomain = host[3]
+            else:
+                subDomain = None
             try:
                 apiName = 'GetSystemInstanceList'
-                client = self.providerInstance.getClient(hostname, port)
+                client = self.providerInstance.getClient(hostname, port, subDomain)
                 result = self.providerInstance.callSoapApi(client, apiName)
                 instanceList = self._parseResults(result)
                 isSuccess = True
@@ -301,13 +314,16 @@ class sapNetweaverProviderCheck(ProviderCheck):
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
         for instance in sapInstances:
-            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'])
+            if 'subDomain' not in instance:
+               instance.update({'subDomain': None})
+               client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'], instance['subDomain'])
             results = self.providerInstance.callSoapApi(client, apiName)
             if len(results) != 0:
                 parsed_results = parser(results)
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
                     result['instanceNr'] = instance['instanceNr']
+                    result['subDomain'] = instance['subDomain']
                     result['timestamp'] = currentTimestamp
                     result['serverTimestamp'] = self.lastRunServer.isoformat()
                     result['SID'] = self.providerInstance.sapSid
