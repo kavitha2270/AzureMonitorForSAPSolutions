@@ -66,7 +66,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
-        self.sapSubDomain = self.providerProperties.get("sapSubDomain", None)
+        self.sapSubDomain = self.providerProperties.get("sapSubdomain", None)
         self.sapSid = self.metadata.get("sapSid", None)
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
@@ -85,8 +85,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
             hostname = self.sapHostName
         if not subDomain:
             subDomain = self.sapSubDomain
-            if(subDomain):
-                hostname = hostname + "." + subDomain
+        if subDomain :
+            hostname = hostname + "." + subDomain    
         if not port:
             port = self.getPortFromInstanceNr(self.sapInstanceNr)
 
@@ -175,7 +175,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            if 'sapSubDomain' not in self.providerInstance.providerProperties:
+            if 'sapSubdomain' not in self.providerInstance.providerProperties:
                 hosts = [(self.providerInstance.sapHostName, \
                       self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
             else:
@@ -206,8 +206,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
         isSuccess = False
         for host in hosts:
             hostname, port = host[0], host[1]
-            if len(hosts) > 2:
-                subDomain = host[3]
+            if len(host) > 2:
+                subDomain = host[2]
             else:
                 subDomain = None
             try:
@@ -245,15 +245,18 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return filtered_instances
 
     def _getServerTimestamp(self, instances: list) -> datetime:
-        self.tracer.info("[%s] fetching current timestamp from message server")
+        self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
-        date = self._getFormattedTimestamp()
-
+        date = self._getFormattedTimestamp()     
         # Get timestamp from the first message server that returns a valid date
         for instance in message_server_instances:
             hostname = instance['hostname']
             instanceNr = str(instance['instanceNr']).zfill(2)
             port = self.providerInstance.getMessageServerPortFromInstanceNr(instanceNr)
+            if 'sapSubdomain' in self.providerInstance.providerProperties:
+                subdomain = self.providerInstance.providerProperties['sapSubdomain']
+                hostname = hostname + "." + subdomain            
+            
             message_server_endpoint = "http://%s:%s/" % (hostname, port)
 
             try:
