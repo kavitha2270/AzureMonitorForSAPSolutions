@@ -175,17 +175,13 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            if 'sapSubdomain' not in self.providerInstance.providerProperties:
-                hosts = [(self.providerInstance.sapHostName,
-                          self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
-            else:
-                hosts = [(self.providerInstance.sapHostName,
-                          self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr),
-                          self.providerInstance.sapSubdomain)]
+            hosts = [(self.providerInstance.sapHostName,
+                      self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr),
+                      self.providerInstance.sapSubdomain)]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], hostConfig['httpsPort']) for hostConfig in currentHostConfig]
+            hosts = [(hostConfig['hostname'], hostConfig['httpsPort'], hostConfig['sapSubdomain']) for hostConfig in currentHostConfig]
 
         return hosts
 
@@ -205,11 +201,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Walk through the known hostnames and stop whenever any of them returns the list of all instances
         isSuccess = False
         for host in hosts:
-            hostname, port = host[0], host[1]
-            if len(host) > 2:
-                sapSubdomain = host[2]
-            else:
-                sapSubdomain = None
+            hostname, port, sapSubdomain = host[0], host[1], host[2]           
             try:
                 apiName = 'GetSystemInstanceList'
                 client = self.providerInstance.getClient(hostname, port, sapSubdomain)
