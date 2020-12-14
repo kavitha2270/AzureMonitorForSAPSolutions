@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime
+from time import time
 from typing import Any, Callable
 import requests
 from requests import Session
@@ -17,6 +18,7 @@ from const import *
 from helper.azure import *
 from helper.context import *
 from helper.tools import *
+from helper.timeutils import TimeUtils
 from provider.base import ProviderInstance, ProviderCheck
 from typing import Dict
 
@@ -79,35 +81,49 @@ class sapNetweaverProviderInstance(ProviderInstance):
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
-    def getClient(self, hostname: str = None, port: str = None) -> Client:
+    def getClient(self, 
+                  hostname: str = None, 
+                  httpProtocol: str = "https", 
+                  port: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
         if not port:
             port = self.getPortFromInstanceNr(self.sapInstanceNr)
 
-        self.tracer.info("[%s] connecting to hostname: %s and port: %s" % (self.fullName, hostname, port))
+        url = '%s://%s:%s/?wsdl' % (httpProtocol, hostname, port)
 
+        self.tracer.info("[%s] connecting to wsdl url: %s" % (self.fullName, url))
+
+        startTime = time()
         try:
-            url = 'https://%s:%s/?wsdl' % (hostname, port)
             self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
 
             session = Session()
             session.verify = False
             client = Client(url, transport=Transport(session=session))
+            self.tracer.info("[%s] initialized SOAP client url: %s [%d ms]" % \
+                             (self.fullName, url, TimeUtils.getElapsedMilliseconds(startTime)))
+
             return client
         except Exception as e:
-            self.tracer.error("[%s] error while connecting to hostname: %s and port: %s: %s" % (self.fullName, hostname, port, e))
+            self.tracer.error("[%s] error fetching wsdl url: %s: %s [%d ms]" % \
+                              (self.fullName, url, e, TimeUtils.getElapsedMilliseconds(startTime)))
             raise e
 
     def callSoapApi(self, client: Client, apiName: str) -> str:
         self.tracer.info("[%s] executing SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
 
+        startTime = time()
         try:
             method = getattr(client.service, apiName)
             result = method()
+            self.tracer.info("[%s] successful SOAP API: %s for wsdl: %s [%d ms]" % \
+                             (self.fullName, apiName, client.wsdl.location, TimeUtils.getElapsedMilliseconds(startTime)))
+
             return result
         except Exception as e:
-            self.tracer.info("[%s] error while calling SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
+            self.tracer.error("[%s] error while calling SOAP API: %s for wsdl: %s: %s [%d ms]" % \
+                             (self.fullName, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime)))
             raise e
 
     def validate(self) -> bool:
@@ -187,6 +203,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _getInstances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
 
+        startTime = time()
+
         instanceList = []
         hosts = self._getHosts()
 
@@ -198,7 +216,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
             try:
                 apiName = 'GetSystemInstanceList'
-                client = self.providerInstance.getClient(hostname, port)
+                client = self.providerInstance.getClient(hostname, "https", port)
                 result = self.providerInstance.callSoapApi(client, apiName)
                 instanceList = self._parseResults(result)
                 isSuccess = True
@@ -207,8 +225,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 self.tracer.error("[%s] could not connect to SAP with hostname: %s and port: %s" % (self.fullName, hostname, port))
 
         if not isSuccess:
-            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s" % \
-                (self.fullName, self.providerInstance.fullName, hosts))
+            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s [%d ms]" % \
+                (self.fullName, self.providerInstance.fullName, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
+
+        self.tracer.info("[%s] finished getting all system instances [%d ms]" % \
+                         (self.fullName, TimeUtils.getElapsedMilliseconds(startTime)))
 
         return instanceList
 
@@ -280,6 +301,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
 
+        # track latency of entire method excecution with dependencies
+        startTime = time()
+
         if parser is None:
             parser = self._parseResults
 
@@ -300,7 +324,15 @@ class sapNetweaverProviderCheck(ProviderCheck):
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
         for instance in sapInstances:
-            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'])
+            # default to https unless the httpsPort was not defined, in which case fallback to http
+            httpProtocol = "https"
+            port = instance['httpsPort']
+            if ((not port) or port == "0"):
+                # fallback to http port instead
+                httpProtocol = "http"
+                port = instance['httpPort']
+
+            client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
             results = self.providerInstance.callSoapApi(client, apiName)
             if len(results) != 0:
                 parsed_results = parser(results)
@@ -318,9 +350,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         # Update internal state
         if not self.updateState():
-            raise Exception("[%s] failed to update state" % self.fullName)
+            raise Exception("[%s] failed to update state for web service request: %s [%d ms]" % \
+                            (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
-        self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
+        self.tracer.info("[%s] successfully processed web service request: %s [%d ms]" % \
+                         (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResults)
