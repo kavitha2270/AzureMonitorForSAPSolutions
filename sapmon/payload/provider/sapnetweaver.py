@@ -181,7 +181,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], hostConfig['httpsPort'], hostConfig['sapSubdomain']) for hostConfig in currentHostConfig]
+            hosts = [(hostConfig['hostname'], hostConfig['httpsPort'], self.providerInstance.sapSubdomain) for hostConfig in currentHostConfig]
 
         return hosts
 
@@ -273,6 +273,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
             currentTimestamp = self._getFormattedTimestamp()
+            sapSubdomain = None
             if 'sapSubdomain' in self.providerInstance.providerProperties:
                 sapSubdomain = self.providerInstance.sapSubdomain
             for instance in instanceList:
@@ -313,6 +314,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Call web service
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
+        sapSubdomain = None
         if 'sapSubdomain' in self.providerInstance.providerProperties:
             sapSubdomain = self.providerInstance.sapSubdomain
         for instance in sapInstances:            
