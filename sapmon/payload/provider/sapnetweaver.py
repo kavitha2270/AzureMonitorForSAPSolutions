@@ -247,7 +247,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _getServerTimestamp(self, instances: list) -> datetime:
         self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
-        date = self._getFormattedTimestamp()     
+        date = self._getFormattedTimestamp()   
+
         # Get timestamp from the first message server that returns a valid date
         for instance in message_server_instances:
             hostname = instance['hostname']
@@ -279,9 +280,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
-
             currentTimestamp = self._getFormattedTimestamp()
+            if 'sapSubdomain' in self.providerInstance.providerProperties:
+                sapSubdomain = self.providerInstance.sapSubdomain
             for instance in instanceList:
+                if sapSubdomain:
+                    instance.update({'sapSubdomain': sapSubdomain})
                 instance['timestamp'] = currentTimestamp
                 instance['serverTimestamp'] = self.lastRunServer.isoformat()
                 instance['SID'] = self.providerInstance.sapSid
@@ -317,16 +321,18 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Call web service
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
-        for instance in sapInstances:
-            if 'sapSubdomain' not in instance:
-               instance.update({'sapSubdomain': None})
-               client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'], instance['sapSubdomain'])
+        if 'sapSubdomain' in self.providerInstance.providerProperties:
+            sapSubdomain = self.providerInstance.sapSubdomain
+        for instance in sapInstances:            
+            instance.update({'sapSubdomain': sapSubdomain})
+            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'], instance['sapSubdomain'])
             results = self.providerInstance.callSoapApi(client, apiName)
             if len(results) != 0:
                 parsed_results = parser(results)
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
-                    result['instanceNr'] = instance['instanceNr']
+                    if sapSubdomain:
+                        result['instanceNr'] = instance['instanceNr']
                     result['sapSubdomain'] = instance['sapSubdomain']
                     result['timestamp'] = currentTimestamp
                     result['serverTimestamp'] = self.lastRunServer.isoformat()
