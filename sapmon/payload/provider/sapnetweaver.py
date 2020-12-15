@@ -36,6 +36,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.sapSid = None
         self.sapHostName = None
         self.sapInstanceNr = None
+        self.sapSubdomain = None
 
         retrySettings = {
             "retries": 3,
@@ -67,8 +68,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
-
-        self.sapSid = self.metadata.get("sapSid", None)
+        self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
+        self.sapSid = self.metadata.get("sapSid", "")
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
             return False
@@ -81,15 +82,25 @@ class sapNetweaverProviderInstance(ProviderInstance):
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
+    def getFullyQualifiedDomainName(self, subdomain: str, hostname: str) -> str:
+        if subdomain:
+            return hostname + "." + subdomain
+        else:
+            return hostname
+
     def getClient(self, 
                   hostname: str = None, 
                   httpProtocol: str = "https", 
-                  port: str = None) -> Client:
+                  port: str = None,
+                  subdomain: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
+        if not subdomain:
+            subdomain = self.sapSubdomain
         if not port:
             port = self.getPortFromInstanceNr(self.sapInstanceNr)
 
+        hostname = self.getFullyQualifiedDomainName(subdomain, hostname)
         url = '%s://%s:%s/?wsdl' % (httpProtocol, hostname, port)
 
         self.tracer.info("[%s] connecting to wsdl url: %s" % (self.fullName, url))
@@ -175,6 +186,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         **kwargs
     ):
         self.lastRunServer = None
+        self.lastRunLocal = None
         return super().__init__(provider, **kwargs)
 
     def _getFormattedTimestamp(self) -> str:
@@ -185,12 +197,13 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # hostname and instanceNr
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            hosts = [(self.providerInstance.sapHostName, \
-                self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr))]
+            hosts = [(self.providerInstance.sapHostName,
+                      self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr),
+                      self.providerInstance.sapSubdomain)]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], hostConfig['httpsPort']) for hostConfig in currentHostConfig]
+            hosts = [(hostConfig['hostname'], hostConfig['httpsPort'], self.providerInstance.sapSubdomain) for hostConfig in currentHostConfig]
 
         return hosts
 
@@ -212,11 +225,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Walk through the known hostnames and stop whenever any of them returns the list of all instances
         isSuccess = False
         for host in hosts:
-            hostname, port = host[0], host[1]
-
+            hostname, port, subdomain = host[0], host[1], host[2]           
             try:
                 apiName = 'GetSystemInstanceList'
-                client = self.providerInstance.getClient(hostname, "https", port)
+                client = self.providerInstance.getClient(hostname, "https", port, subdomain)
                 result = self.providerInstance.callSoapApi(client, apiName)
                 instanceList = self._parseResults(result)
                 isSuccess = True
@@ -252,7 +264,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return filtered_instances
 
     def _getServerTimestamp(self, instances: list) -> datetime:
-        self.tracer.info("[%s] fetching current timestamp from message server")
+        self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
         date = self._getFormattedTimestamp()
 
@@ -261,6 +273,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
             hostname = instance['hostname']
             instanceNr = str(instance['instanceNr']).zfill(2)
             port = self.providerInstance.getMessageServerPortFromInstanceNr(instanceNr)
+            subdomain = self.providerInstance.sapSubdomain
+            hostname = self.providerInstance.getFullyQualifiedDomainName(subdomain, hostname)
             message_server_endpoint = "http://%s:%s/" % (hostname, port)
 
             try:
@@ -269,13 +283,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
                 break
             except Exception as e:
-                self.tracer.error("[%s] suppressing error during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
-
+                self.tracer.info("[%s] suppressing expected error while fetching server time during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
         return date
 
     def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
-
+        self.lastRunLocal = datetime.utcnow()
         instanceList = self._getInstances()
         self.lastRunServer = self._getServerTimestamp(instanceList)
 
@@ -283,12 +296,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
             self.providerInstance.state['hostConfig'] = instanceList
-
             currentTimestamp = self._getFormattedTimestamp()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
                 instance['serverTimestamp'] = self.lastRunServer.isoformat()
                 instance['SID'] = self.providerInstance.sapSid
+                instance['subdomain'] = self.providerInstance.sapSubdomain
 
         self.lastResult = instanceList
 
@@ -300,6 +313,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
+        self.lastRunLocal = datetime.utcnow()
 
         # track latency of entire method excecution with dependencies
         startTime = time()
@@ -332,13 +346,15 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 httpProtocol = "http"
                 port = instance['httpPort']
 
-            client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
+            client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port, self.providerInstance.sapSubdomain)
             results = self.providerInstance.callSoapApi(client, apiName)
+            
             if len(results) != 0:
                 parsed_results = parser(results)
                 for result in parsed_results:
                     result['hostname'] = instance['hostname']
                     result['instanceNr'] = instance['instanceNr']
+                    result['subdomain'] = self.providerInstance.sapSubdomain
                     result['timestamp'] = currentTimestamp
                     result['serverTimestamp'] = self.lastRunServer.isoformat()
                     result['SID'] = self.providerInstance.sapSid
@@ -365,14 +381,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
-        self.tracer.debug("[%s] resultJson=%s" % (self.fullName,
-                                                   str(resultJsonString)))
+        self.tracer.debug("[%s] resultJson=%s" % (self.fullName, str(resultJsonString)))
         return resultJsonString
 
     def updateState(self) -> bool:
         self.tracer.info("[%s] updating internal state" % self.fullName)
-        lastRunLocal = datetime.utcnow()
-        self.state['lastRunLocal'] = lastRunLocal
+        self.state['lastRunLocal'] = self.lastRunLocal
         self.state['lastRunServer'] = self.lastRunServer
         self.tracer.info("[%s] internal state successfully updated" % self.fullName)
         return True
