@@ -245,7 +245,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _getServerTimestamp(self, instances: list) -> datetime:
         self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
-        date = self._getFormattedTimestamp()   
+        date = self._getFormattedTimestamp()
 
         # Get timestamp from the first message server that returns a valid date
         for instance in message_server_instances:
@@ -270,7 +270,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.lastRunLocal = datetime.utcnow()
         instanceList = self._getInstances()
         self.lastRunServer = self._getServerTimestamp(instanceList)
-        
+
         # Update host config, if new list is fetched
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
@@ -304,7 +304,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapInstances = self._getInstances()
 
         self.lastRunServer = self._getServerTimestamp(sapInstances)
-        
+
         # Filter instances down to the ones that support this API
         sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
