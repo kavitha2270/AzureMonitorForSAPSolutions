@@ -5,7 +5,7 @@
             "description": "SAP Netweaver GetSystemInstanceList",
             "customLog": "SapNetweaver_GetSystemInstanceList",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": false,
+            "includeInCustomerAnalytics": true,
             "actions": [
                 {
                     "type": "GetSystemInstanceList"
@@ -17,7 +17,7 @@
             "description": "SAP Netweaver GetProcessList",
             "customLog": "SapNetweaver_GetProcessList",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": false,
+            "includeInCustomerAnalytics": true,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -34,7 +34,7 @@
             "description": "SAP Netweaver ABAPGetWPTable",
             "customLog": "SapNetweaver_ABAPGetWPTable",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": false,
+            "includeInCustomerAnalytics": true,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -51,7 +51,7 @@
             "description": "SAP Netweaver GetQueueStatistic",
             "customLog": "SapNetweaver_GetQueueStatistic",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": false,
+            "includeInCustomerAnalytics": true,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -68,7 +68,7 @@
             "description": "SAP Netweaver EnqGetStatistic",
             "customLog": "SapNetweaver_EnqGetStatistic",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": false,
+            "includeInCustomerAnalytics": true,
             "actions": [
                 {
                     "type": "ExecuteEnqGetStatistic",
