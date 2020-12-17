@@ -24,3 +24,4 @@ class TimeUtils:
             endTime = time()
 
         return int((endTime - startTime) * 1000)
+        
