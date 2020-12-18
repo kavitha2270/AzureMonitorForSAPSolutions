@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime
+from time import time
 from typing import Any, Callable
 import requests
 from requests import Session
@@ -17,6 +18,7 @@ from const import *
 from helper.azure import *
 from helper.context import *
 from helper.tools import *
+from helper.timeutils import TimeUtils
 from provider.base import ProviderInstance, ProviderCheck
 from typing import Dict
 
@@ -74,51 +76,114 @@ class sapNetweaverProviderInstance(ProviderInstance):
 
         return True
 
-    def getPortFromInstanceNr(self, instanceNr: str) -> str:
+    def getHttpPortFromInstanceNr(self, instanceNr: str) -> str:
+        return '5%s13' % instanceNr # As per SAP documentation, default http port is of the form 5<NR>13
+
+    def getHttpsPortFromInstanceNr(self, instanceNr: str) -> str:
         return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
-    def getFullyQualifiedDomainName(self, subdomain: str, hostname: str) -> str:
-        if subdomain:
-            return hostname + "." + subdomain
+    def getFullyQualifiedDomainName(self, hostname: str) -> str:
+        if self.sapSubdomain:
+            return hostname + "." + self.sapSubdomain
         else:
             return hostname
 
-    def getClient(self, hostname: str = None, port: str = None, subdomain: str = None) -> Client:
+    """
+    will first attempt to create SOAP client for hostname using the HTTPS port derived from the SAP instance number,
+    and if that does not succeed will then try to create client using the derived HTTP port
+    (if neither hostname or instance are specified, will default to the primary hostname/instance that the
+    provider was initialized with from properties)
+    """
+    def getDefaultClient(self,
+                         hostname: str = None, 
+                         instance: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
-        if not subdomain:
-            subdomain = self.sapSubdomain
-        if not port:
-            port = self.getPortFromInstanceNr(self.sapInstanceNr)
+        if not instance:
+            instance = self.sapInstanceNr
+        
+        # first try to instantiate client on HTTPS port
+        port = self.getHttpsPortFromInstanceNr(instance)
+        startTime = time()
 
-        hostname = self.getFullyQualifiedDomainName(subdomain, hostname)
-
-        self.tracer.info("[%s] connecting to hostname: %s and port: %s" % (self.fullName, hostname, port))
+        self.tracer.info("[%s] attempting to fetch default client for hostname=%s on https port %s" % \
+                         (self.fullName, hostname, port))
 
         try:
-            url = 'https://%s:%s/?wsdl' % (hostname, port)
-            self.tracer.info("[%s] establishing connection to url: %s" % (self.fullName, url))
+            client = self.getClient(hostname, httpProtocol="https", port=port)
+            return client
+        except Exception as e:
+            self.tracer.error("[%s] error fetching default client hostname=%s on https port %s: %s [%d ms]" % \
+                              (self.fullName, self.sapHostName, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
+        
+        # HTTPS port did not work on default host, so try falling back to HTTP port
+        port = self.getHttpPortFromInstanceNr(instance)
+        startTime = time()
 
+        self.tracer.info("[%s] attempting to fetch default client for hostname=%s on http port %s" % \
+                         (self.fullName, self.sapHostName, port))
+
+        try:
+            client = self.getClient(self.sapHostName, httpProtocol="http", port=port)
+            return client
+        except Exception as e:
+            self.tracer.error("[%s] error fetching default client hostname=%s on http port %s: %s [%d ms]" % \
+                              (self.fullName, self.sapHostName, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
+            raise e
+
+    """
+    attempt to create a SOAP client for the specified hostname using specific protocol and port
+    (for when we already have a known hostconfig for this hostname, and already know whether HTTPS or HTTP should be used)
+    """
+    def getClient(self, 
+                  hostname: str, 
+                  httpProtocol: str, 
+                  port: str) -> Client:
+
+        if not hostname or not httpProtocol or not port:
+            raise Exception("[%s] cannot create client with empty httpProtocol, hostname or port (%s:%s:%s)" % \
+                            (self.fullName, httpProtocol, hostname, port))
+        
+        if httpProtocol != "http" and httpProtocol != "https":
+            raise Exception("[%s] httpProtocol %s is not valid for hostname: %s, port: %s" % \
+                            (self.fullName, httpProtocol, hostname, port))
+
+        hostname = self.getFullyQualifiedDomainName(hostname)
+        url = '%s://%s:%s/?wsdl' % (httpProtocol, hostname, port)
+
+        self.tracer.info("[%s] connecting to wsdl url: %s" % (self.fullName, url))
+
+        startTime = time()
+        try:
             session = Session()
             session.verify = False
             client = Client(url, transport=Transport(session=session))
+            self.tracer.info("[%s] initialized SOAP client url: %s [%d ms]" % \
+                             (self.fullName, url, TimeUtils.getElapsedMilliseconds(startTime)))
+
             return client
         except Exception as e:
-            self.tracer.error("[%s] error while connecting to hostname: %s and port: %s: %s" % (self.fullName, hostname, port, e))
+            self.tracer.error("[%s] error fetching wsdl url: %s: %s [%d ms]" % \
+                              (self.fullName, url, e, TimeUtils.getElapsedMilliseconds(startTime)))
             raise e
 
     def callSoapApi(self, client: Client, apiName: str) -> str:
         self.tracer.info("[%s] executing SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
 
+        startTime = time()
         try:
             method = getattr(client.service, apiName)
             result = method()
+            self.tracer.info("[%s] successful SOAP API: %s for wsdl: %s [%d ms]" % \
+                             (self.fullName, apiName, client.wsdl.location, TimeUtils.getElapsedMilliseconds(startTime)))
+
             return result
         except Exception as e:
-            self.tracer.info("[%s] error while calling SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
+            self.tracer.error("[%s] error while calling SOAP API: %s for wsdl: %s: %s [%d ms]" % \
+                             (self.fullName, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime)))
             raise e
 
     def validate(self) -> bool:
@@ -128,7 +193,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.initContent()
 
         try:
-            client = self.getClient()
+            client = self.getDefaultClient(hostname=self.sapHostName, instance=self.sapInstanceNr)
         except Exception as e:
             self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
             return False
@@ -182,12 +247,16 @@ class sapNetweaverProviderCheck(ProviderCheck):
         if 'hostConfig' not in self.providerInstance.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
             hosts = [(self.providerInstance.sapHostName,
-                      self.providerInstance.getPortFromInstanceNr(self.providerInstance.sapInstanceNr),
-                      self.providerInstance.sapSubdomain)]
+                      self.providerInstance.sapInstanceNr,
+                      None,
+                      None)]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
             currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], hostConfig['httpsPort'], self.providerInstance.sapSubdomain) for hostConfig in currentHostConfig]
+            hosts = [(hostConfig['hostname'], 
+                      hostConfig['instanceNr'], 
+                      "https" if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else "http", 
+                      hostConfig['httpsPort'] if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else hostConfig['httpPort']) for hostConfig in currentHostConfig]
 
         return hosts
 
@@ -200,6 +269,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _getInstances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
 
+        startTime = time()
+
         instanceList = []
         hosts = self._getHosts()
 
@@ -207,10 +278,19 @@ class sapNetweaverProviderCheck(ProviderCheck):
         # Walk through the known hostnames and stop whenever any of them returns the list of all instances
         isSuccess = False
         for host in hosts:
-            hostname, port, subdomain = host[0], host[1], host[2]           
+            hostname, instanceNum, httpProtocol, port = host[0], host[1], host[2], host[3]
+
             try:
                 apiName = 'GetSystemInstanceList'
-                client = self.providerInstance.getClient(hostname, port, subdomain)
+
+                # if we have a cached host config with already defined protocol and port, then we can initialize
+                # client directly from that, otherwise we have to instantiate client using ports derived from the instance number
+                # which will try the derived HTTPS port first and then fallback to derived HTTP port
+                if (not httpProtocol or not port):
+                    client = self.providerInstance.getDefaultClient(hostname=hostname, instance=instanceNum)
+                else:
+                    client = self.providerInstance.getClient(hostname, httpProtocol, port)
+
                 result = self.providerInstance.callSoapApi(client, apiName)
                 instanceList = self._parseResults(result)
                 isSuccess = True
@@ -219,8 +299,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 self.tracer.error("[%s] could not connect to SAP with hostname: %s and port: %s" % (self.fullName, hostname, port))
 
         if not isSuccess:
-            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s" % \
-                (self.fullName, self.providerInstance.fullName, hosts))
+            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s [%d ms]" % \
+                (self.fullName, self.providerInstance.fullName, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
+
+        self.tracer.info("[%s] finished getting all system instances [%d ms]" % \
+                         (self.fullName, TimeUtils.getElapsedMilliseconds(startTime)))
 
         return instanceList
 
@@ -252,8 +335,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             hostname = instance['hostname']
             instanceNr = str(instance['instanceNr']).zfill(2)
             port = self.providerInstance.getMessageServerPortFromInstanceNr(instanceNr)
-            subdomain = self.providerInstance.sapSubdomain
-            hostname = self.providerInstance.getFullyQualifiedDomainName(subdomain, hostname)
+            hostname = self.providerInstance.getFullyQualifiedDomainName(hostname)
             message_server_endpoint = "http://%s:%s/" % (hostname, port)
 
             try:
@@ -294,6 +376,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
         self.lastRunLocal = datetime.utcnow()
 
+        # track latency of entire method excecution with dependencies
+        startTime = time()
+
         if parser is None:
             parser = self._parseResults
 
@@ -314,8 +399,17 @@ class sapNetweaverProviderCheck(ProviderCheck):
         all_results = []
         currentTimestamp = self._getFormattedTimestamp()
         for instance in sapInstances:
-            client = self.providerInstance.getClient(instance['hostname'], instance['httpsPort'], self.providerInstance.sapSubdomain)
+            # default to https unless the httpsPort was not defined, in which case fallback to http
+            httpProtocol = "https"
+            port = instance['httpsPort']
+            if ((not port) or port == "0"):
+                # fallback to http port instead
+                httpProtocol = "http"
+                port = instance['httpPort']
+
+            client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
             results = self.providerInstance.callSoapApi(client, apiName)
+            
             if len(results) != 0:
                 parsed_results = parser(results)
                 for result in parsed_results:
@@ -333,9 +427,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         # Update internal state
         if not self.updateState():
-            raise Exception("[%s] failed to update state" % self.fullName)
+            raise Exception("[%s] failed to update state for web service request: %s [%d ms]" % \
+                            (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
-        self.tracer.info("[%s] successfully processed web service request: %s" % (self.fullName, apiName))
+        self.tracer.info("[%s] successfully processed web service request: %s [%d ms]" % \
+                         (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResults)
