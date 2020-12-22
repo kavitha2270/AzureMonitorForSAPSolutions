@@ -18,7 +18,6 @@ from const import *
 from helper.azure import *
 from helper.context import *
 from helper.tools import *
-from helper.timeutils import TimeUtils
 from provider.base import ProviderInstance, ProviderCheck
 from typing import Dict
 
@@ -76,10 +75,10 @@ class sapNetweaverProviderInstance(ProviderInstance):
 
         return True
 
-    def getHttpPortFromInstanceNr(self, instanceNr: str) -> str:
+    def _getHttpPortFromInstanceNr(self, instanceNr: str) -> str:
         return '5%s13' % instanceNr # As per SAP documentation, default http port is of the form 5<NR>13
 
-    def getHttpsPortFromInstanceNr(self, instanceNr: str) -> str:
+    def _getHttpsPortFromInstanceNr(self, instanceNr: str) -> str:
         return '5%s14' % instanceNr # As per SAP documentation, default https port is of the form 5<NR>14
 
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
@@ -106,7 +105,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             instance = self.sapInstanceNr
         
         # first try to instantiate client on HTTPS port
-        port = self.getHttpsPortFromInstanceNr(instance)
+        port = self._getHttpsPortFromInstanceNr(instance)
         startTime = time()
 
         self.tracer.info("[%s] attempting to fetch default client for hostname=%s on https port %s" % \
@@ -120,7 +119,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
                               (self.fullName, self.sapHostName, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
         
         # HTTPS port did not work on default host, so try falling back to HTTP port
-        port = self.getHttpPortFromInstanceNr(instance)
+        port = self._getHttpPortFromInstanceNr(instance)
         startTime = time()
 
         self.tracer.info("[%s] attempting to fetch default client for hostname=%s on http port %s" % \
