@@ -104,34 +104,27 @@ class sapNetweaverProviderInstance(ProviderInstance):
         if not instance:
             instance = self.sapInstanceNr
         
-        # first try to instantiate client on HTTPS port
-        port = self._getHttpsPortFromInstanceNr(instance)
+        httpsPort = self._getHttpsPortFromInstanceNr(instance)
+        httpPort = self._getHttpPortFromInstanceNr(instance)
+
+        portDic = [ (httpsPort, "https") , (httpPort, "http")]
+        exceptionDetails = None
         startTime = time()
+        for port,protocol in portDic:
+            startTime = time()
+            self.tracer.info("[%s] attempting to fetch default client for hostname=%s on %s port %s" % \
+                         (self.fullName, hostname, protocol, port))
+            try:
+                client = self.getClient(hostname, httpProtocol=protocol, port=port)
+                return client
+            except Exception as e:
+                exceptionDetails = e
+                self.tracer.info("[%s] error fetching default client hostname=%s on %s port %s: %s [%d ms]" % \
+                            (self.fullName, self.sapHostName, protocol, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
 
-        self.tracer.info("[%s] attempting to fetch default client for hostname=%s on https port %s" % \
-                         (self.fullName, hostname, port))
-
-        try:
-            client = self.getClient(hostname, httpProtocol="https", port=port)
-            return client
-        except Exception as e:
-            self.tracer.error("[%s] error fetching default client hostname=%s on https port %s: %s [%d ms]" % \
-                              (self.fullName, self.sapHostName, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
-        
-        # HTTPS port did not work on default host, so try falling back to HTTP port
-        port = self._getHttpPortFromInstanceNr(instance)
-        startTime = time()
-
-        self.tracer.info("[%s] attempting to fetch default client for hostname=%s on http port %s" % \
-                         (self.fullName, self.sapHostName, port))
-
-        try:
-            client = self.getClient(self.sapHostName, httpProtocol="http", port=port)
-            return client
-        except Exception as e:
-            self.tracer.error("[%s] error fetching default client hostname=%s on http port %s: %s [%d ms]" % \
-                              (self.fullName, self.sapHostName, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
-            raise e
+        self.tracer.error("[%s] error fetching default client hostname=%s on port %s : %s [%d ms]" % \
+                         (self.fullName, self.sapHostName, portDic, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime)))
+        raise exceptionDetails
 
     """
     attempt to create a SOAP client for the specified hostname using specific protocol and port
@@ -145,7 +138,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         if not hostname or not httpProtocol or not port:
             raise Exception("[%s] cannot create client with empty httpProtocol, hostname or port (%s:%s:%s)" % \
                             (self.fullName, httpProtocol, hostname, port))
-        
+
         if httpProtocol != "http" and httpProtocol != "https":
             raise Exception("[%s] httpProtocol %s is not valid for hostname: %s, port: %s" % \
                             (self.fullName, httpProtocol, hostname, port))
