@@ -107,10 +107,10 @@ class sapNetweaverProviderInstance(ProviderInstance):
         httpsPort = self._getHttpsPortFromInstanceNr(instance)
         httpPort = self._getHttpPortFromInstanceNr(instance)
 
-        portDic = [ (httpsPort, "https") , (httpPort, "http")]
+        portList = [(httpsPort,"https"),(httpPort,"http")]
         exceptionDetails = None
         startTime = time()
-        for port,protocol in portDic:
+        for port,protocol in portList:
             startTime = time()
             self.tracer.info("[%s] attempting to fetch default client for hostname=%s on %s port %s" % \
                          (self.fullName, hostname, protocol, port))
@@ -123,7 +123,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
                             (self.fullName, self.sapHostName, protocol, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
 
         self.tracer.error("[%s] error fetching default client hostname=%s on port %s : %s [%d ms]" % \
-                         (self.fullName, self.sapHostName, portDic, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime)))
+                         (self.fullName, self.sapHostName, portList, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime)))
         raise exceptionDetails
 
     """
