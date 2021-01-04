@@ -7,7 +7,7 @@ import logging
 import requests
 from typing import Callable, Dict, Optional
 from binascii import hexlify
-
+from time import time
 # Payload modules
 from const import *
 
@@ -67,7 +67,9 @@ class JsonEncoder(json.JSONEncoder):
       elif isinstance(o, bytes):
          s = hexlify(o).decode("ascii")
          return "0x%s" % s.upper()
-      return super(JsonEncoder, self).default(o)      
+      return super(JsonEncoder, self).default(o)
+
+###############################################################################
 
 # Helper class to de-serialize JSON into datetime and Decimal objects
 class JsonDecoder(json.JSONDecoder):
@@ -88,3 +90,20 @@ class Singleton(type):
       if cls not in cls._instances:
          cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
       return cls._instances[cls]
+
+###############################################################################
+
+#TimeUtils helper methods for working with time() objects for logging high precision latency
+class TimeUtils:
+    @staticmethod
+    def getElapsedMilliseconds(startTime: float, endTime: float = None) -> int:
+        """
+        return number of milliseconds (as int) elapsed since the specified start time
+        (where start time is value returned from previous call to time.time())
+
+        if endTime is not specified, then will calculate elapsed against current Time()
+        """
+        if not endTime:
+            endTime = time()
+
+        return int((endTime - startTime) * 1000)
