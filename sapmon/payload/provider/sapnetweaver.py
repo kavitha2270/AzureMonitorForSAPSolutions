@@ -103,7 +103,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             hostname = self.sapHostName
         if not instance:
             instance = self.sapInstanceNr
-        
+
         httpsPort = self._getHttpsPortFromInstanceNr(instance)
         httpPort = self._getHttpPortFromInstanceNr(instance)
 
@@ -320,7 +320,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _getServerTimestamp(self, instances: list) -> datetime:
         self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
-        date = self._getFormattedTimestamp()
+        date = datetime.fromisoformat(self._getFormattedTimestamp())
 
         # Get timestamp from the first message server that returns a valid date
         for instance in message_server_instances:
@@ -401,7 +401,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
             client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
             results = self.providerInstance.callSoapApi(client, apiName)
-            
+
             if len(results) != 0:
                 parsed_results = parser(results)
                 for result in parsed_results:
