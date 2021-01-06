@@ -1,11 +1,12 @@
 # Python modules
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import time
 from typing import Any, Callable
 import requests
 from requests import Session
+from requests.auth import HTTPBasicAuth
 
 # SOAP Client modules
 from zeep import Client
@@ -67,10 +68,27 @@ class sapNetweaverProviderInstance(ProviderInstance):
             self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
             return False
         self.sapInstanceNr = instanceNr.zfill(2)
+
         self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
+
         self.sapSid = self.metadata.get("sapSid", "")
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
+            return False
+
+        self.sapOdataUsername = self.providerProperties.get("sapOdataUsername", None)
+        if not self.sapOdataUsername:
+            self.tracer.error("[%s] sapOdataUsername cannot be empty" % self.fullName)
+            return False
+
+        self.sapOdataPassword = self.providerProperties.get("sapOdataPassword", None)
+        if not self.sapOdataPassword:
+            self.tracer.error("[%s] sapOdataPassword cannot be empty" % self.fullName)
+            return False
+
+        self.sapOdataHttpsPortPrefix = self.providerProperties.get("sapOdataHttpsPortPrefix", None)
+        if not self.sapOdataHttpsPortPrefix:
+            self.tracer.error("[%s] sapOdataHttpsPortPrefix cannot be empty" % self.fullName)
             return False
 
         return True
@@ -84,11 +102,20 @@ class sapNetweaverProviderInstance(ProviderInstance):
     def getMessageServerPortFromInstanceNr(self, instanceNr: str) -> str:
         return '81%s' % instanceNr # As per SAP documentation, default http port is of the form 81<NR>
 
+    def getODataHttpsPortFromInstanceNr(self, instanceNr: str) -> str:
+        return '%s%s' % (self.sapOdataHttpsPortPrefix, instanceNr)
+
     def getFullyQualifiedDomainName(self, hostname: str) -> str:
         if self.sapSubdomain:
             return hostname + "." + self.sapSubdomain
         else:
             return hostname
+
+    def parseResult(self, result: object) -> list:
+        return [helpers.serialize_object(result, dict)]
+
+    def parseResults(self, results: list) -> list:
+        return helpers.serialize_object(results, dict)
 
     """
     will first attempt to create SOAP client for hostname using the HTTPS port derived from the SAP instance number,
@@ -97,7 +124,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
     provider was initialized with from properties)
     """
     def getDefaultClient(self,
-                         hostname: str = None, 
+                         hostname: str = None,
                          instance: str = None) -> Client:
         if not hostname:
             hostname = self.sapHostName
@@ -130,9 +157,9 @@ class sapNetweaverProviderInstance(ProviderInstance):
     attempt to create a SOAP client for the specified hostname using specific protocol and port
     (for when we already have a known hostconfig for this hostname, and already know whether HTTPS or HTTP should be used)
     """
-    def getClient(self, 
-                  hostname: str, 
-                  httpProtocol: str, 
+    def getClient(self,
+                  hostname: str,
+                  httpProtocol: str,
                   port: str) -> Client:
 
         if not hostname or not httpProtocol or not port:
@@ -178,87 +205,28 @@ class sapNetweaverProviderInstance(ProviderInstance):
                              (self.fullName, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime)))
             raise e
 
-    def validate(self) -> bool:
-        self.tracer.info("[%s] connecting to sap to test SOAP API connectivity" % self.fullName)
-
-        # HACK: Load content json to fetch the list of APIs in the checks
-        self.initContent()
-
-        try:
-            client = self.getDefaultClient(hostname=self.sapHostName, instance=self.sapInstanceNr)
-        except Exception as e:
-            self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
-            return False
-
-        # Ensure that all APIs in the checks are valid and are marked as unprotected.
-        # Some APIs are compatible with only specific instance types and throw a Fault if run against
-        # an incompatible one.
-        # However, here we suppress all errors except Unauthorized since the Monitor phase takes
-        # care of calling the API against the right instance type. As long as we don't get an
-        # Unauthorized error, we know we can safely call them during the Monitor phase.
-        isValid = True
-        for check in self.checks:
-            apiName = check.name
-            method = getattr(client.service, apiName, None) # Returning None when API not found
-            if method is None:
-                self.tracer.error("[%s] validation failure: api %s does not exist" % (self.fullName, apiName))
-                isValid = False
-            else:
-                try:
-                    self.callSoapApi(client, apiName)
-                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
-                except Fault as e:
-                    if (e.code == "SOAP-ENV:Client" and e.message == "HTTP Error: 'Unauthorized'"):
-                        isValid = False
-                        self.tracer.error("[%s] api %s is not marked as unprotected: %s " % (self.fullName, apiName, e))
-                    else:
-                        self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
-                except Exception as e:
-                    self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
-
-        return isValid
-
-###########################
-class sapNetweaverProviderCheck(ProviderCheck):
-    lastResult = []
-
-    def __init__(self,
-        provider: ProviderInstance,
-        **kwargs
-    ):
-        self.lastRunServer = None
-        self.lastRunLocal = None
-        return super().__init__(provider, **kwargs)
-
-    def _getFormattedTimestamp(self) -> str:
-        return datetime.now().isoformat()
-
     def _getHosts(self) -> list:
         # Fetch last known list from storage. If storage does not have list, use provided
         # hostname and instanceNr
-        if 'hostConfig' not in self.providerInstance.state:
+        if 'hostConfig' not in self.state:
             self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            hosts = [(self.providerInstance.sapHostName,
-                      self.providerInstance.sapInstanceNr,
+            hosts = [(self.sapHostName,
+                      self.sapInstanceNr,
                       None,
                       None)]
         else:
             self.tracer.info("[%s] fetching last known host config" % self.fullName)
-            currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], 
-                      hostConfig['instanceNr'], 
-                      "https" if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else "http", 
-                      hostConfig['httpsPort'] if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else hostConfig['httpPort']) for hostConfig in currentHostConfig]
+            currentHostConfig = self.state['hostConfig']
+            hosts = [(hostConfig['hostname'],
+                      hostConfig['instanceNr'],
+                      "https" if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") \
+                          else "http",
+                      hostConfig['httpsPort'] if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") \
+                          else hostConfig['httpPort']) for hostConfig in currentHostConfig]
 
         return hosts
 
-    def _parseResult(self, result: object) -> list:
-        return [helpers.serialize_object(result, dict)]
-
-    def _parseResults(self, results: list) -> list:
-        return helpers.serialize_object(results, dict)
-
-    def _getInstances(self) -> list:
+    def getInstances(self) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
 
         startTime = time()
@@ -279,12 +247,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 # client directly from that, otherwise we have to instantiate client using ports derived from the instance number
                 # which will try the derived HTTPS port first and then fallback to derived HTTP port
                 if (not httpProtocol or not port):
-                    client = self.providerInstance.getDefaultClient(hostname=hostname, instance=instanceNum)
+                    client = self.getDefaultClient(hostname=hostname, instance=instanceNum)
                 else:
-                    client = self.providerInstance.getClient(hostname, httpProtocol, port)
+                    client = self.getClient(hostname, httpProtocol, port)
 
-                result = self.providerInstance.callSoapApi(client, apiName)
-                instanceList = self._parseResults(result)
+                result = self.callSoapApi(client, apiName)
+                instanceList = self.parseResults(result)
                 isSuccess = True
                 break
             except Exception as e:
@@ -292,14 +260,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         if not isSuccess:
             raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s [%d ms]" % \
-                (self.fullName, self.providerInstance.fullName, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
+                (self.fullName, self.fullName, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
 
         self.tracer.info("[%s] finished getting all system instances [%d ms]" % \
                          (self.fullName, TimeUtils.getElapsedMilliseconds(startTime)))
 
         return instanceList
 
-    def _filterInstances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
+    def filterInstances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
         self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, filterFeatures))
 
         instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
@@ -317,9 +285,107 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         return filtered_instances
 
+    def validate(self) -> bool:
+        self.tracer.info("[%s] connecting to sap to test SOAP API connectivity" % self.fullName)
+
+        # HACK: Load content json to fetch the list of APIs in the checks
+        self.initContent()
+
+        try:
+            client = self.getDefaultClient(hostname=self.sapHostName, instance=self.sapInstanceNr)
+        except Exception as e:
+            self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
+            return False
+
+        # SOAP API validations
+        isValid = True
+        soapChecks = [check for check in self.checks if check.actions[0]['type'] in \
+            ['GetSystemInstanceList', 'ExecuteGenericWebServiceRequest', 'ExecuteEnqGetStatistic']]
+        for check in soapChecks:
+            apiName = check.name
+            self.tracer.info("[%s] validating check: %s" % (self.fullName, apiName))
+
+            # Ensure that all SOAP APIs in the checks are valid and are marked as unprotected.
+            # Some APIs are compatible with only specific instance types and throw a Fault if run against
+            # an incompatible one.
+            # However, here we suppress all errors except Unauthorized since the Monitor phase takes
+            # care of calling the API against the right instance type. As long as we don't get an
+            # Unauthorized error, we know we can safely call them during the Monitor phase.
+            method = getattr(client.service, apiName, None) # Returning None when API not found
+            if method is None:
+                self.tracer.error("[%s] validation failure: api %s does not exist" % (self.fullName, apiName))
+                isValid = False
+            else:
+                try:
+                    self.callSoapApi(client, apiName)
+                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+                except Fault as e:
+                    if (e.code == "SOAP-ENV:Client" and e.message == "HTTP Error: 'Unauthorized'"):
+                        isValid = False
+                        self.tracer.error("[%s] api %s is not marked as unprotected: %s " % (self.fullName, apiName, e))
+                    else:
+                        self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
+                except Exception as e:
+                    self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
+
+        if not isValid:
+            return False
+
+        # OData API validations
+        instances = self.getInstances()
+        instances = self.filterInstances(instances, ['ICMAN'], 'include')
+        instance = instances[0]
+
+        odataChecks = [check for check in self.checks if check.actions[0]['type'] in ['ExecuteODataServiceRequest']]
+        for check in odataChecks:
+            apiName = check.name
+            self.tracer.info("[%s] validating check: %s" % (self.fullName, apiName))
+
+            firstAction = check.actions[0]
+            hostname = instance['hostname']
+            hostname = self.getFullyQualifiedDomainName(hostname)
+            port = self.getODataHttpsPortFromInstanceNr(str(instance['instanceNr']).zfill(2))
+            apiPrefix = firstAction['parameters']['apiPrefix']
+
+            # Pick a window starting from previous day's midnight. This provides enough buffer for the window end to have elapsed
+            windowStartTime = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days = 1)
+            windowEndTime = windowStartTime + timedelta(seconds = check.frequencySecs)
+            date = windowStartTime.strftime('%Y-%m-%dT%H:%M:%S')
+            windowStartTime = windowStartTime.strftime('PT%HH%MM%SS')
+            windowEndTime = windowEndTime.strftime('PT%HH%MM%SS')
+
+            url = "https://%s:%s/sap/opu/odata/SAP/%s/%s?$filter=Datum eq datetime'%s' \
+                and Time ge time'%s' and Time le time'%s'&$format=json" \
+                % (hostname, port, apiPrefix, apiName, date, windowStartTime, windowEndTime)
+
+            self.tracer.info("[%s] making HTTP request to OData url: %s" % (self.fullName, url))
+            try:
+                requests.get(url, auth=HTTPBasicAuth(self.sapOdataUsername, self.sapOdataPassword), verify = False)
+                self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+            except Exception as e:
+                isValid = False
+                self.tracer.error("[%s] error during validation of api %s: %s " % (self.fullName, apiName, e))
+
+        return isValid
+
+###########################
+class sapNetweaverProviderCheck(ProviderCheck):
+    lastResult = []
+
+    def __init__(self,
+        provider: ProviderInstance,
+        **kwargs
+    ):
+        self.lastRunServer = None
+        self.lastRunLocal = None
+        return super().__init__(provider, **kwargs)
+
+    def _getFormattedTimestamp(self) -> str:
+        return datetime.now().isoformat()
+
     def _getServerTimestamp(self, instances: list) -> datetime:
         self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
-        message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
+        message_server_instances = self.providerInstance.filterInstances(instances, ['MESSAGESERVER'], 'include')
         date = datetime.fromisoformat(self._getFormattedTimestamp())
 
         # Get timestamp from the first message server that returns a valid date
@@ -342,7 +408,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
         self.lastRunLocal = datetime.utcnow()
-        instanceList = self._getInstances()
+        instanceList = self.providerInstance.getInstances()
         self.lastRunServer = self._getServerTimestamp(instanceList)
 
         # Update host config, if new list is fetched
@@ -372,18 +438,18 @@ class sapNetweaverProviderCheck(ProviderCheck):
         startTime = time()
 
         if parser is None:
-            parser = self._parseResults
+            parser = self.providerInstance.parseResults
 
         # Use cached list of instances if available since they don't change that frequently; else fetch afresh
         if 'hostConfig' in self.providerInstance.state:
             sapInstances = self.providerInstance.state['hostConfig']
         else:
-            sapInstances = self._getInstances()
+            sapInstances = self.providerInstance.getInstances()
 
         self.lastRunServer = self._getServerTimestamp(sapInstances)
 
         # Filter instances down to the ones that support this API
-        sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
+        sapInstances = self.providerInstance.filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
             self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
 
@@ -426,10 +492,130 @@ class sapNetweaverProviderCheck(ProviderCheck):
                          (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
-        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResults)
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self.providerInstance.parseResults)
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
-        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResult)
+        self._executeWebServiceRequest(apiName, filterFeatures, filterType, self.providerInstance.parseResult)
+
+    def _actionExecuteODataServiceRequest(self, apiName: str, apiPrefix: str, filterFeatures: list, filterType: str) -> None:
+        self.tracer.info("[%s] executing OData web service request: %s" % (self.fullName, apiName))
+        self.lastRunLocal = datetime.utcnow()
+
+        # track latency of entire method excecution with dependencies
+        startTime = time()
+        currentTimestamp = self._getFormattedTimestamp()
+
+        ############ Local functions ############
+        def getInstances() -> list:
+            # Use cached list of instances if available since they don't change that frequently; else fetch afresh
+            if 'hostConfig' in self.providerInstance.state:
+                sapInstances = self.providerInstance.state['hostConfig']
+            else:
+                sapInstances = self.providerInstance.getInstances()
+
+            # Filter instances down to the ones that support this API
+            sapInstances = self.providerInstance.filterInstances(sapInstances, filterFeatures, filterType)
+
+            return sapInstances
+
+        def getQueryWindow(sapInstances) -> str:
+            lastRunTime = self.state.get('lastRunServer', None)
+
+            # If last run server time not available
+            if lastRunTime is None:
+                self.tracer.info("[%s] no last run time detected, picking a new window starting point" % self.fullName)
+                # Set server time as the window end time
+                windowEnd = self._getServerTimestamp(sapInstances)
+                # Window size is frequency of action
+                windowStart = windowEnd - timedelta(seconds = self.frequencySecs)
+                # Clip start time to current day's midnight if it extends into previous day
+                # since API supports fetching records for 1 specific day at a time
+                currentMidnight = datetime.combine(windowEnd.date(), datetime.min.time())
+                windowStart = max(windowStart, currentMidnight)
+            else:
+                self.tracer.info("[%s] found last run time, continuing next window from that point" % self.fullName)
+                windowStart = lastRunTime
+                windowEnd = windowStart + timedelta(seconds=self.frequencySecs)
+                # Clip end time to next day's midnight if it extends into next day
+                # since API supports fetching records for 1 specific day at a time
+                nextMidnight = datetime.combine(windowStart.date(), datetime.min.time()) + timedelta(days = 1)
+                windowEndTime = min(windowEnd, nextMidnight)
+
+            date = datetime.combine(windowStart.date(), datetime.min.time()).strftime('%Y-%m-%dT%H:%M:%S')
+            windowStartTime = windowStart.strftime('PT%HH%MM%SS')
+            windowEndTime = windowEnd.strftime('PT%HH%MM%SS')
+            self.tracer.info("[%s] query window: (date=%s, start=%s, end=%s)" \
+                % (self.fullName, date, windowStartTime, windowEndTime))
+
+            return date, windowStartTime, windowEndTime, windowStart, windowEnd
+
+        def parseSapTime(date: str, time: str) -> str:
+            date = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S')
+            time = datetime.strptime(time, 'PT%HH%MM%SS').time()
+            timestamp = datetime.combine(date, time).isoformat()
+            return timestamp
+
+        #########################################
+
+        # Get relevant list of instances
+        sapInstances = getInstances()
+
+        allResults = []
+
+        date, windowStartTime, windowEndTime, _, lastRunServer = getQueryWindow(sapInstances)
+        self.lastRunServer = lastRunServer
+
+        if len(sapInstances) == 0:
+            self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
+        else:
+            # Construct url
+            # Pick the first hostname since all hosts refer to the same underlying OData API
+            instance = sapInstances[0]
+            hostname = instance['hostname']
+            hostname = self.providerInstance.getFullyQualifiedDomainName(hostname)
+            port = self.providerInstance.getODataHttpsPortFromInstanceNr(str(instance['instanceNr']).zfill(2))
+
+            url = "https://%s:%s/sap/opu/odata/SAP/%s/%s?$filter=Datum eq datetime'%s' \
+                   and Time ge time'%s' and Time le time'%s'&$format=json" \
+                   % (hostname, port, apiPrefix, apiName, date, windowStartTime, windowEndTime)
+
+            self.tracer.info("[%s] making HTTP request to OData url: %s" % (self.fullName, url))
+            try:
+                response = requests.get(url, auth=HTTPBasicAuth(self.providerInstance.sapOdataUsername, \
+                    self.providerInstance.sapOdataPassword), verify = False)
+                results = response.json()['d']['results']
+                self.tracer.info("[%s] succesfully called OData API: %s [%d ms]" \
+                    % (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
+            except Exception as e:
+                self.tracer.error("[%s] error while calling OData API: %s : %s [%d ms]" % \
+                                (self.fullName, apiName, e, TimeUtils.getElapsedMilliseconds(startTime)))
+                raise e
+
+            for result in results:
+                result['hostname'] = instance['hostname']
+                result['instanceNr'] = instance['instanceNr']
+                result['httpsPort'] = port
+                result['subdomain'] = self.providerInstance.sapSubdomain
+                result['timestamp'] = currentTimestamp
+                result['serverTimestamp'] = parseSapTime(date, result['Time'])
+                result['windowStartTime'] = parseSapTime(date, windowStartTime)
+                result['windowEndTime'] = parseSapTime(date, windowEndTime)
+                result['SID'] = self.providerInstance.sapSid
+
+            allResults.extend(results)
+
+        if len(allResults) == 0:
+            self.tracer.info("[%s] no results found for %s in query window: (date=%s, start=%s, end=%s)" \
+                % (self.fullName, apiName, date, windowStartTime, windowEndTime))
+        self.lastResult = allResults
+
+        # Update internal state
+        if not self.updateState():
+            raise Exception("[%s] failed to update state for OData web service request: %s [%d ms]" % \
+                            (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
+
+        self.tracer.info("[%s] successfully processed OData web service request: %s [%d ms]" % \
+                         (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
