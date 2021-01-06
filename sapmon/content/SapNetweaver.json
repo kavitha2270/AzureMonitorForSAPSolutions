@@ -79,6 +79,24 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "SMON_EXTSet",
+            "description": "SAP Netweaver SMON_EXTSet",
+            "customLog": "SapNetweaver_SMON_EXTSet",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": true,
+            "actions": [
+                {
+                    "type": "ExecuteODataServiceRequest",
+                    "parameters": {
+                        "apiName": "SMON_EXTSet",
+                        "apiPrefix": "Z_SMON_SRV",
+                        "filterFeatures": ["ICMAN"],
+                        "filterType": "include"
+                    }
+                }
+            ]
         }
     ]
 }
