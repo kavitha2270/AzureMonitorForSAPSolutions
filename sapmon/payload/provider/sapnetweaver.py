@@ -498,6 +498,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self.providerInstance.parseResult)
 
     def _actionExecuteODataServiceRequest(self, apiName: str, apiPrefix: str, filterFeatures: list, filterType: str) -> None:
+        if self.providerInstance.sapSid != 'MSX':
+            self.tracer.info("[%s] Skipping api %s for SID %s since that environment doesn't have OData API set up" % (self.fullName, apiName, self.providerInstance.sapSid))
+            return
+
         self.tracer.info("[%s] executing OData web service request: %s" % (self.fullName, apiName))
         self.lastRunLocal = datetime.utcnow()
 
