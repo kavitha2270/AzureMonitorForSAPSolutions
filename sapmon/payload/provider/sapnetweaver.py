@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
+from pytz import timezone
 from time import time
 from typing import Any, Callable
 import requests
@@ -381,11 +382,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return super().__init__(provider, **kwargs)
 
     def _getFormattedTimestamp(self) -> str:
-        return datetime.now().isoformat()
+        return datetime.utcnow().isoformat()
 
     def _getServerTimestamp(self, instances: list) -> datetime:
         self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
         message_server_instances = self.providerInstance.filterInstances(instances, ['MESSAGESERVER'], 'include')
+        if len(message_server_instances) == 0:
+            self.tracer.info("[%s] did not find any message server instances, returning local time" % self.fullName)
+
         date = datetime.fromisoformat(self._getFormattedTimestamp())
 
         # Get timestamp from the first message server that returns a valid date
@@ -399,7 +403,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             try:
                 # We only care about the date in the response header. so we ignore the response body
                 response = requests.get(message_server_endpoint)
-                date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
+                date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S GMT')
                 break
             except Exception as e:
                 self.tracer.info("[%s] suppressing expected error while fetching server time during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
@@ -498,10 +502,6 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self.providerInstance.parseResult)
 
     def _actionExecuteODataServiceRequest(self, apiName: str, apiPrefix: str, filterFeatures: list, filterType: str) -> None:
-        if self.providerInstance.sapSid != 'MSX':
-            self.tracer.info("[%s] Skipping api %s for SID %s since that environment doesn't have OData API set up" % (self.fullName, apiName, self.providerInstance.sapSid))
-            return
-
         self.tracer.info("[%s] executing OData web service request: %s" % (self.fullName, apiName))
         self.lastRunLocal = datetime.utcnow()
 
@@ -517,19 +517,24 @@ class sapNetweaverProviderCheck(ProviderCheck):
             else:
                 sapInstances = self.providerInstance.getInstances()
 
-            # Filter instances down to the ones that support this API
-            sapInstances = self.providerInstance.filterInstances(sapInstances, filterFeatures, filterType)
-
             return sapInstances
 
-        def getQueryWindow(sapInstances) -> str:
+        def getServerTime(allInstances) -> datetime:
+            return self._getServerTimestamp(allInstances) \
+                .replace(tzinfo=timezone('UTC')) \
+                .astimezone(tz=timezone('US/Pacific')) \
+                .replace(tzinfo=None)
+
+        def getQueryWindow(allInstances) -> str:
+            # Query window is inclusive of start and end timestamps
+
             lastRunTime = self.state.get('lastRunServer', None)
 
             # If last run server time not available
             if lastRunTime is None:
                 self.tracer.info("[%s] no last run time detected, picking a new window starting point" % self.fullName)
                 # Set server time as the window end time
-                windowEnd = self._getServerTimestamp(sapInstances)
+                windowEnd = getServerTime(allInstances)
                 # Window size is frequency of action
                 windowStart = windowEnd - timedelta(seconds = self.frequencySecs)
                 # Clip start time to current day's midnight if it extends into previous day
@@ -538,12 +543,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 windowStart = max(windowStart, currentMidnight)
             else:
                 self.tracer.info("[%s] found last run time, continuing next window from that point" % self.fullName)
-                windowStart = lastRunTime
-                windowEnd = windowStart + timedelta(seconds=self.frequencySecs)
-                # Clip end time to next day's midnight if it extends into next day
+                windowStart = lastRunTime + timedelta(seconds = 1)
+                windowEnd = getServerTime(allInstances)
+                # Clip end time to right before next day's midnight if it extends into next day
                 # since API supports fetching records for 1 specific day at a time
                 nextMidnight = datetime.combine(windowStart.date(), datetime.min.time()) + timedelta(days = 1)
-                windowEndTime = min(windowEnd, nextMidnight)
+                windowEnd = min(windowEnd, nextMidnight - timedelta(seconds = 1))
 
             date = datetime.combine(windowStart.date(), datetime.min.time()).strftime('%Y-%m-%dT%H:%M:%S')
             windowStartTime = windowStart.strftime('PT%HH%MM%SS')
@@ -561,13 +566,16 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         #########################################
 
-        # Get relevant list of instances
-        sapInstances = getInstances()
-
         allResults = []
 
-        date, windowStartTime, windowEndTime, _, lastRunServer = getQueryWindow(sapInstances)
+        allInstances = getInstances()
+
+        # Construct query window
+        date, windowStartTime, windowEndTime, _, lastRunServer = getQueryWindow(allInstances)
         self.lastRunServer = lastRunServer
+
+        # Filter instances down to the ones that support this API
+        sapInstances = self.providerInstance.filterInstances(allInstances, filterFeatures, filterType)
 
         if len(sapInstances) == 0:
             self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
