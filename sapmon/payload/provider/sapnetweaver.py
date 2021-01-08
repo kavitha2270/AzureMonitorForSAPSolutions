@@ -231,7 +231,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         return super().__init__(provider, **kwargs)
 
     def _getFormattedTimestamp(self) -> str:
-        return datetime.now().isoformat()
+        return datetime.utcnow().isoformat()
 
     def _getHosts(self) -> list:
         # Fetch last known list from storage. If storage does not have list, use provided
