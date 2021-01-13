@@ -63,10 +63,10 @@ class sapNetweaverProviderInstance(ProviderInstance):
         if not instanceNr:
             self.tracer.error("[%s] sapInstanceNr cannot be empty" % self.fullName)
             return False
-        if not instanceNr.isdecimal() or int(instanceNr) < 0 or int(instanceNr) > 98:
-            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, instanceNr))
+        if not isinstance(instanceNr, int) or instanceNr < 0 or instanceNr > 98:
+            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, str(instanceNr)))
             return False
-        self.sapInstanceNr = instanceNr.zfill(2)
+        self.sapInstanceNr = str(instanceNr).zfill(2)
         self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
         self.sapSid = self.metadata.get("sapSid", "")
         if not self.sapSid:
