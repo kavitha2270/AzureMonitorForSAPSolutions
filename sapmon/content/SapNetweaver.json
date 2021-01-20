@@ -74,7 +74,7 @@
                     "type": "ExecuteEnqGetStatistic",
                     "parameters": {
                         "apiName": "EnqGetStatistic",
-                        "filterFeatures": ["ENQUE", "ENQREP"],
+                        "filterFeatures": ["ENQUE"],
                         "filterType": "include"
                     }
                 }
