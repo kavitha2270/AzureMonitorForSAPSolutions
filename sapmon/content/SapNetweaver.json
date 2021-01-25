@@ -57,7 +57,7 @@
                     "type": "ExecuteGenericWebServiceRequest",
                     "parameters": {
                         "apiName": "GetQueueStatistic",
-                        "filterFeatures": ["MESSAGESERVER", "ENQUE"],
+                        "filterFeatures": ["MESSAGESERVER", "ENQUE", "ENQREP"],
                         "filterType": "exclude"
                     }
                 }
