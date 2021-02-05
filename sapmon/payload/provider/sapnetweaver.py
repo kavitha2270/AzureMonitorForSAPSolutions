@@ -305,7 +305,9 @@ class sapNetweaverProviderInstance(ProviderInstance):
         # care of calling the API against the right instance type. As long as we don't get an
         # Unauthorized error, we know we can safely call them during the Monitor phase.
         isValid = True
-        for check in self.checks:
+        soapApiChecks = [check for check in self.checks if check.actions[0]['type'] in ['GetSystemInstanceList', \
+            'ExecuteGenericWebServiceRequest', 'ExecuteEnqGetStatistic']]
+        for check in soapApiChecks:
             apiName = check.name
             method = getattr(client.service, apiName, None) # Returning None when API not found
             if method is None:
@@ -323,6 +325,46 @@ class sapNetweaverProviderInstance(ProviderInstance):
                         self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
                 except Exception as e:
                     self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
+
+        if not isValid:
+            return False
+
+        # OData API validations
+        instances = self.getInstances()
+        instances = self.filterInstances(instances, ['ICMAN'], 'include')
+        instance = instances[0]
+
+        odataChecks = [check for check in self.checks if check.actions[0]['type'] in ['ExecuteODataServiceRequest']]
+        for check in odataChecks:
+            apiName = check.name
+            self.tracer.info("[%s] validating check: %s" % (self.fullName, apiName))
+
+            firstAction = check.actions[0]
+            hostname = instance['hostname']
+            hostname = self.getFullyQualifiedDomainName(hostname)
+            port = self.getODataHttpsPortFromInstanceNr(str(instance['instanceNr']).zfill(2))
+            apiPrefix = firstAction['parameters']['apiPrefix']
+
+            # Pick a window starting from previous day's midnight. This provides enough buffer for the window end to have elapsed
+            windowStart = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days = 1)
+            windowEnd = windowStart + timedelta(seconds = check.frequencySecs)
+            windowStartTime = windowStart.strftime('%Y-%m-%dT%H:%M:%S')
+            windowEndTime = windowEnd.strftime('%Y-%m-%dT%H:%M:%S')
+
+            url = "https://%s:%s/sap/opu/odata/SAP/%s/%s?$filter=Datetime ge datetime'%s' \
+                   and Datetime le datetime'%s'&$format=json" \
+                   % (hostname, port, apiPrefix, apiName, windowStartTime, windowEndTime)
+
+            self.tracer.info("[%s] making HTTP request to OData url: %s" % (self.fullName, url))
+            try:
+                response = requests.get(url, auth=HTTPBasicAuth(self.sapOdataUsername, self.sapOdataPassword), verify = False)
+                if (response.status_code != HTTPStatus.OK):
+                    self.tracer.error("[%s] validation failure for api %s: expected http status code %s but received %s instead" \
+                        % (self.fullName, apiName, int(HTTPStatus.OK), response.status_code))
+                self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+            except Exception as e:
+                isValid = False
+                self.tracer.error("[%s] error during validation of api %s: %s " % (self.fullName, apiName, e))
 
         return isValid
 
