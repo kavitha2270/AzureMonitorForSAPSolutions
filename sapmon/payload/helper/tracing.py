@@ -133,17 +133,17 @@ class tracing:
          return record
       tracer.info("adding storage queue log handler")
       try:
-         storageQueue = AzureStorageQueue(tracer,
-                                          ctx.sapmonId,
-                                          ctx.msiClientId,
-                                          ctx.vmInstance["subscriptionId"],
-                                          ctx.vmInstance["resourceGroupName"],
-                                          queueName = STORAGE_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
+         queueName = STORAGE_QUEUE_NAMING_CONVENTION % ctx.sapmonId
+         storageAccount = AzureStorageAccount(tracer,
+                                              ctx.sapmonId,
+                                              ctx.msiClientId,
+                                              ctx.vmInstance["subscriptionId"],
+                                              ctx.vmInstance["resourceGroupName"])
          storageKey = tracing.getAccessKeys(tracer, ctx)
-         queueStorageLogHandler = QueueStorageHandler(account_name=storageQueue.accountName,
+         queueStorageLogHandler = QueueStorageHandler(account_name=storageAccount.accountName,
                                                       account_key = storageKey,
                                                       protocol = "https",
-                                                      queue = storageQueue.name)
+                                                      queue = queueName)
          queueStorageLogHandler.level = DEFAULT_QUEUE_TRACE_LEVEL
          jsonFormatter = JsonFormatter(tracing.config["formatters"]["json"]["fieldMapping"])
          queueStorageLogHandler.setFormatter(jsonFormatter)
@@ -163,17 +163,17 @@ class tracing:
                                    ctx) -> logging.Logger:
        tracer.info("creating customer metrics tracer object")
        try:
-           storageQueue = AzureStorageQueue(tracer,
-                                            ctx.sapmonId,
-                                            ctx.msiClientId,
-                                            ctx.vmInstance["subscriptionId"],
-                                            ctx.vmInstance["resourceGroupName"],
-                                            CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
+           queueName = CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId
+           storageAccount = AzureStorageAccount(tracer,
+                                                ctx.sapmonId,
+                                                ctx.msiClientId,
+                                                ctx.vmInstance["subscriptionId"],
+                                                ctx.vmInstance["resourceGroupName"])
            storageKey = tracing.getAccessKeys(tracer, ctx)
-           customerMetricsLogHandler = QueueStorageHandler(account_name = storageQueue.accountName,
+           customerMetricsLogHandler = QueueStorageHandler(account_name = storageAccount.accountName,
                                                            account_key = storageKey,
                                                            protocol = "https",
-                                                           queue = storageQueue.name)
+                                                           queue = queueName)
        except Exception as e:
            tracer.error("could not add handler for the storage queue logging (%s) " % e)
            return
@@ -212,10 +212,9 @@ class tracing:
          tracer.warning("unable to get access keys from key vault, fetching from storage account (%s) " % e)
 
       tracer.info("fetching queue access keys from storage account")
-      storageQueue = AzureStorageQueue(tracer,
-                                       ctx.sapmonId,
-                                       ctx.msiClientId,
-                                       ctx.vmInstance["subscriptionId"],
-                                       ctx.vmInstance["resourceGroupName"],
-                                       CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
-      return storageQueue.getAccessKey()
+      storageAccount = AzureStorageAccount(tracer,
+                                           ctx.sapmonId,
+                                           ctx.msiClientId,
+                                           ctx.vmInstance["subscriptionId"],
+                                           ctx.vmInstance["resourceGroupName"])
+      return storageAccount.getAccessKey()
