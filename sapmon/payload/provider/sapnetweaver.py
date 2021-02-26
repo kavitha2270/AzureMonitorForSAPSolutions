@@ -439,8 +439,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
-        for result in self.lastResult:
-           result['sapmonVersion'] = PAYLOAD_VERSION
+        if self.lastResult is not None and len(self.lastResult) != 0:
+            for result in self.lastResult:
+                result['sapmonVersion'] = PAYLOAD_VERSION
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
         self.tracer.debug("[%s] resultJson=%s" % (self.fullName, str(resultJsonString)))
         return resultJsonString
