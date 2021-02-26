@@ -400,11 +400,12 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 httpProtocol = "http"
                 port = instance['httpPort']
 
+            results = []
             try:
                 client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
                 results = self.providerInstance.callSoapApi(client, apiName)
             except Exception as e:
-                self.tracer.error("Unable to call the Soap Api %s - %s://%s:%s, %s",apiName, httpProtocol, instance['hostname'], port, e)
+                self.tracer.error("[%s] unable to call the Soap Api %s - %s://%s:%s, %s", self.fullName, apiName, httpProtocol, instance['hostname'], port, e)
                 continue
 
             if len(results) != 0:
@@ -438,9 +439,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)
-        if len(self.lastResult) != 0:
-            for result in self.lastResult:
-                result['sapmonVersion'] = PAYLOAD_VERSION
+        for result in self.lastResult:
+           result['sapmonVersion'] = PAYLOAD_VERSION
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
         self.tracer.debug("[%s] resultJson=%s" % (self.fullName, str(resultJsonString)))
         return resultJsonString
