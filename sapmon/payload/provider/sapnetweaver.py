@@ -441,7 +441,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.tracer.info("[%s] converting result to json string" % self.fullName)
         if self.lastResult is not None and len(self.lastResult) != 0:
             for result in self.lastResult:
-                result['sapmonVersion'] = PAYLOAD_VERSION
+                result['SAPMON_VERSION'] = PAYLOAD_VERSION
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
         self.tracer.debug("[%s] resultJson=%s" % (self.fullName, str(resultJsonString)))
         return resultJsonString
