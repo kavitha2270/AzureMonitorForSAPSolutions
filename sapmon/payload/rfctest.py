@@ -8,7 +8,7 @@
 
 # Python modules
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import os
 
@@ -170,11 +170,13 @@ def main() -> None:
         resourceGroupName = 'sapmon-rg-75853a6503011a'
         keyVaultName = "sapmon-kv-75853a6503011a"
         sdkBlobUrl = "https://sapmonsto75853a6503011a.blob.core.windows.net/sap-netweaver-rfc-sdk/nwrfc750P_7-70002752.zip"
+        accountKey = None
+        serverTimeZone = timezone(offset=-timedelta(hours=8))
 
     tracer = tracing.initTracer()
     tracer.info("Logging initialized %s", datetime.now())
 
-    if (not accountKey):
+    if (not accountKey or keyVaultName):
         tracer.info("attempting to fetch MSI clientId")
         authToken, msiClientId = AzureInstanceMetadataService.getAuthToken(tracer)
         tracer.info("msiClientId=%s", msiClientId)
@@ -188,25 +190,33 @@ def main() -> None:
 
     if (keyVaultName and msiClientId):
         kv = AzureKeyVault(tracer, kvName=keyVaultName, msiClientId=msiClientId)
-        configText = kv.getSecret(secretId='SapNetwweaver')
-        configData = json.loads(configText, object_hook=JsonDecoder.datetimeHook)
+        configText = kv.getSecret(secretId='SapNetweaver')
+        configData = json.loads(configText.value, object_hook=JsonDecoder.datetimeHook)
 
-        sapUsername = configData['properties']['sapOdataUsername']
-        sapPassword = configData['properties']['sapOdataPassword']
+        sapUsername = configData['properties'].get('sapUsername', None)
+        sapPassword = configData['properties'].get('sapPassword', None)
+
+        if (not sapUsername):
+            sapUsername = configData['properties'].get('sapOdataUsername', None)
+        
+        if (not sapPassword):
+            sapPassword = configData['properties'].get('sapOdataPassword', None)
 
     if (not sapUsername or not sapPassword):
         tracer.error("Could not load sapUsername or sapPassword, quitting")
         return
         
     if (os.name == "nt"):
-        installPath = 'c:\\temp\\sdk-installpath'
+        installPath = 'c:\\temp\\sdk-installpath\nwrfcsdk'
     else:
-        installPath = '/home/mfrei/sdk-installpath'
+        installPath = '/home/mfrei/sdk-installpath/nwrfcsdk'
 
     installer = SapRfcSdkInstaller(tracer=tracer, installPath=installPath)
 
     tracer.info("initializing RFC SDK environment...")
-    installer.initializeRfcSdkEnvironment()
+    if (not installer.initRfcSdkEnvironment()):
+        tracer.error("failed to initialize rfc sdk environment pre-requisites")
+        return
 
     if (not sdkBlobUrl):
         tracer.info("No user provided RFC SDK blob url, will not leverage RFC SDK. quitting...")
@@ -215,75 +225,71 @@ def main() -> None:
     if (installer.isPyrfcModuleUsable()):
         tracer.info("Pyrfc module is usable")
     else:
+        
+        if (not installer.isPyrfcModuleInstalled()):
+            tracer.error("pyrfc module not installed, so skipping RFC SDK installation attempt")
+            return
+
+        tracer.info("Pyrfc module is not currently usable, checking RFC SDK installation...")
+
         # check last sdk install attempt time so we can limit how often we try
         # to reinstall on persistent failures
         lastSdkInstallAttemptTime = installer.getLastSdkInstallAttemptTime()
-        if (lastSdkInstallAttemptTime > (datetime.utcnow() - minimumRfcInstallAttemptInterval)):
+        if (lastSdkInstallAttemptTime > (datetime.now(timezone.utc) - minimumRfcInstallAttemptInterval)):
             tracer.info("last RFC SDK install attempt was %s, minimum attempt retry %s, skipping...",
                         lastSdkInstallAttemptTime, 
                         minimumRfcInstallAttemptInterval)
             return
 
-        if (not installer.isRfcSdkInstalled()):
-            tracer.info("RFC SDK is not installed, so attempt installation now...")
+        if (installer.isRfcSdkInstalled()):
+            tracer.error("unknown issue:  RFC SDK is installed but pyrfc module is not usable")
+            return
 
-            packageExists, packageLastModifiedTime = installer.isRfcSdkAvailableForDownload(
-                blobUrl=sdkBlobUrl, 
-                storageAccount=blobStorageAccount)
+        tracer.info("RFC SDK is not installed, so attempt installation now...")
 
-            if (not packageExists):
-                tracer.info("User provided RFC SDK blob does not exist %s, quitting...", sdkBlobUrl)
-                return
-            
-            tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s", 
-                        sdkBlobUrl, packageLastModifiedTime)
-            
-            # user provided sdk blob exists for download, compare the last_modified timestamp
-            # with the last modified time of the last download attempt.  If nothing has changed, 
-            # then no need to try again
-            lastInstallPackageModifiedTime = installer.getLastSdkInstallPackageModifiedTime()
+        packageExists, packageLastModifiedTime = installer.isRfcSdkAvailableForDownload(
+            blobUrl=sdkBlobUrl, 
+            storageAccount=blobStorageAccount)
 
-            if (packageLastModifiedTime == lastInstallPackageModifiedTime):
-                tracer.info("rfc sdk download package has not been modified since last download " +
-                            "attempt (last_modified=%s), will not download again",
-                            lastInstallPackageModifiedTime)
-                return
-            
-            tracer.info("user provided rfc sdk package last_modified (%s) has changed " + 
-                        "since laset package download (%s), attempting to download and install",
-                        packageLastModifiedTime,
+        if (not packageExists):
+            tracer.info("User provided RFC SDK blob does not exist %s, quitting...", sdkBlobUrl)
+            return
+        
+        tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s", 
+                    sdkBlobUrl, packageLastModifiedTime)
+        
+        # user provided sdk blob exists for download, compare the last_modified timestamp
+        # with the last modified time of the last download attempt.  If nothing has changed, 
+        # then no need to try again
+        lastInstallPackageModifiedTime = installer.getLastSdkInstallPackageModifiedTime()
+
+        if (packageLastModifiedTime == lastInstallPackageModifiedTime):
+            tracer.info("rfc sdk download package has not been modified since last download " +
+                        "attempt (last_modified=%s), will not download again",
                         lastInstallPackageModifiedTime)
+            return
+        
+        tracer.info("user provided rfc sdk package last_modified (%s) has changed " + 
+                    "since laset package download (%s), attempting to download and install",
+                    packageLastModifiedTime,
+                    lastInstallPackageModifiedTime)
 
-            if (not installer.downloadAndInstallRfcSdk(blobUrl=sdkBlobUrl, storageAccount=blobStorageAccount)):
-                tracer.info("failed to install rfc sdk package, quitting...")
-                return
-            
-        if (not installer.isPyrfcModuleInstalled()):
+        if (not installer.downloadAndInstallRfcSdk(blobUrl=sdkBlobUrl, storageAccount=blobStorageAccount)):
+            tracer.info("failed to install rfc sdk package, quitting...")
+            return
 
-            # check last module install attempt time so we can limit how often we try
-            # to reinstall on persistent failures
-            lastModuleInstallAttemptTime = installer.getLastPyrfcModuleInstallAttemptTime()
-            if (lastModuleInstallAttemptTime > (datetime.utcnow() - minimumRfcInstallAttemptInterval)):
-                tracer.info("last pyrfc module install attempt was %s, minimum attempt retry %s, skipping...",
-                        lastModuleInstallAttemptTime, 
-                        minimumRfcInstallAttemptInterval)
-                return
-
-            tracer.info("pyrfc python module not installed, attempting to install now")
-            if (not installer.installPyrfcModule()):
-                tracer.info("pyrfc module failed to install, quitting...")
-                return
-
-            tracer.info("pyrfc module install successful")
-            if (not installer.isPyrfcModuleUsable()):
-                tracer.info("pyrfc module should be usable on next run")
+        tracer.info("validating pyrfc module is now usable...")
+        if (not installer.isPyrfcModuleUsable()):
+            tracer.info("pyrfc module still not usable after RFC SDK install")
+            return
         
     hosts = [
          ("MSX", "sapsbx00", "30"), 
-        ("AST", "adstst", "20"), 
-        ("MSX", "sapsbx00", "31")]
+         ("MSX", "sapsbx00", "31"),]
+         #("AST", "adstst", "20"), ]
 
-    for hostTuple in [hosts[0]]:
+    #for hostTuple in [hosts[0]]:
+    for hostTuple in hosts:
         sid = hostTuple[0]
         hostname = hostTuple[1]
         instanceNr = hostTuple[2]
@@ -299,23 +305,27 @@ def main() -> None:
                                                     sapUsername=sapUsername,
                                                     sapPassword=sapPassword,
                                                     columnFilterList=None,
-                                                    serverTimeZone=None)
+                                                    serverTimeZone=serverTimeZone)
 
         if (not client):
             tracer.info("client was not initialized")
             return
     
-        lastRunTime = (datetime.now() - timedelta(seconds=300))
+        lastRunTime = (datetime.now(timezone.utc) - timedelta(seconds=300))
         runFrequencySecs = 60
 
         currentServerTime = client.getServerTime() 
         tracer.info("[host:%s] Current Server Time: %s", hostname, currentServerTime)
 
-        (startTime, endTime) = client.getQueryWindow(lastRunTime=lastRunTime, minimumRunIntervalSecs=runFrequencySecs)
-        tracer.info("[host:%s] startTime: %s, endTime: %s", hostname, startTime, endTime)
+        #(startTime, endTime) = client.getQueryWindow(lastRunTime=lastRunTime, minimumRunIntervalSecs=runFrequencySecs)
+        #tracer.info("[host:%s] startTime: %s, endTime: %s", hostname, startTime, endTime)
 
-        smonMetrics = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
-        tracer.info("[host:%s] SMON metrics:  \n%s", hostname, json.dumps(smonMetrics, indent=4, cls=JsonEncoder))
+        #smonMetrics = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
+        #tracer.info("[host:%s] SMON metrics:  \n%s", hostname, json.dumps(smonMetrics, indent=4, cls=JsonEncoder))
+
+        # TODO: test out SWNC for two different instance calls two two different instances for the same time range
+        startTime = datetime(year=2021, month=2, day=28, hour=15, minute=0, second=0)
+        endTime = datetime(year=2021, month=2, day=28, hour=15, minute=14, second=59)
 
         swncMetrics = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
         tracer.info("[host:%s] SWNC metrics:  \n%s", hostname, json.dumps(swncMetrics, indent=4, cls=JsonEncoder))

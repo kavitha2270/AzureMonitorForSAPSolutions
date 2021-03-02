@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, date, timedelta, time, tzinfo
+from datetime import datetime, date, timedelta, time, tzinfo, timezone
 from typing import Dict, List
 
 # SAP modules
@@ -13,6 +13,10 @@ from pyrfc import Connection, ABAPApplicationError, ABAPRuntimeError, LogonError
 # local abstract base class module
 from netweaver.metricclientfactory import NetWeaverMetricClient
 from helper.tools import JsonEncoder
+
+# enforce maximum query window size so that we don't accidentally query SAP for huge
+# data sets after periods of prolonged downtime/inactivity
+MAX_QUERY_LOOKBACK_WINDOW = timedelta(minutes=15)
 
 # ST03 Workload metric results task id -> text mappings
 SAP_TASK_TYPE_MAPPINGS = {
@@ -81,46 +85,63 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         super().__init__(tracer, logTag)
 
     #####
-    # abstract base class interface methods (NetWeaverMetricClient)
+    # public methods to implement abstract base class interface methods for NetWeaverMetricClient.
     #####
 
      # validate that config settings and that client can establish connection
     def validate(self) -> bool:
         return True
 
-    # return tuple of query start / end time range based on last run time
+    # return tuple of query start / end timestamps that are timezone aware (but in server time)
+    # so that they can be used to define time range for SMON/SWNC metric queries.  Factor in
+    # awareness of last run time so that we have some tolerance on small outages or gaps and can be
+    # used to fill in historical data in those cases, but at same time enforce maximum query window
+    # to ensure we do not query SAP for huge result sets.
+    # Also enforce time range logic that ensures start/end time are always the same calendar 'day',
+    # since that is how SAP stores SMON analysis results
     def getQueryWindow(self, 
                        lastRunTime: datetime,
-                       minimumRunIntervalSecs: int) -> tuple[datetime, datetime]:
+                       minimumRunIntervalSecs: int) -> tuple:
 
         # always start with assumption that query window will work backwards from current system time
         currentServerTime = self.getServerTime()
+
+        # query state always stored in UTC, so need to conver to server time
+        lastRunServerTime = lastRunTime + self.tzinfo.utcoffset(currentServerTime)
 
         # usually a query window will end with the current SAP system time and will have a length
         # will have a duration of the minimum check run interval (in seconds)
         # Since SAP requirement is that start and end time must occur on the same calendar day, 
         # we must handle special when that default window crosses over the midnight 00:00:00 boundary
         # into multiple calendar days (in which case it must be truncated)
-        if lastRunTime is None:
+        if lastRunServerTime is None:
             # if there was no previous check timestamp, then we start a new query
             # window that works backwards from the SAP system time (by the minimum check run interval time).
             # If that will cross the midnight boundary into the previous calendar day, 
             # then the start time should be moved up to be 00:00:00 on the current day.
             windowEnd = currentServerTime
             windowStart = currentServerTime - timedelta(seconds=minimumRunIntervalSecs)
-            currentMidnight = datetime.combine(currentServerTime.date(), time(0, 0, 0))
+            currentMidnight = datetime.combine(currentServerTime.date(), time(0, 0, 0), tzinfo=self.tzinfo)
             windowStart = max(windowStart, currentMidnight)
         else:
             # if we have a previous check timestamp to use as the start of new query window,
             # and this new query window will cross this midnight into the next day,
             # then truncate the query window so that it terminates at 11:59:59PM on the current day. 
-            windowStart = lastRunTime + timedelta(seconds=1)
-            nextMidnight = datetime.combine(windowStart.date(), time(0, 0, 0)) + timedelta(days=1)
+            windowStart = lastRunServerTime + timedelta(seconds=1)
+            nextMidnight = datetime.combine(windowStart.date(), time(0, 0, 0), tzinfo=self.tzinfo) + timedelta(days=1)
             windowEnd = min(currentServerTime, nextMidnight - timedelta(seconds=1))
 
-        self.tracer.info("[%s] getQueryWindow query window for lastRunTime: %s, currentServerTime: %s -> [start=%s, end=%s]", 
+        # enforce maximum query window size so that we don't attempt to fetch a huge amount of data
+        # if the system has been down for prolonged period of time.  This means that we will 
+        # never attempt to backfill metric data outside of the MAX_QUERY_LOOKBACK_WINDOW
+        if ((windowEnd - windowStart) > MAX_QUERY_LOOKBACK_WINDOW):
+            windowStart = windowEnd - MAX_QUERY_LOOKBACK_WINDOW
+
+        self.tracer.info("[%s] getQueryWindow query window for lastRunTime(UTC): %s, lastRunServerTime: %s, " +
+                         "currentServerTime: %s -> [start=%s, end=%s]", 
                          self.logTag, 
                          lastRunTime,
+                         lastRunServerTime,
                          currentServerTime,
                          windowStart, 
                          windowEnd)
@@ -128,6 +149,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         return windowStart, windowEnd
 
     # fetch current sap system time stamp and apply the server timezone (if known)
+    # so that it be used for timezone aware comparisons against tz-aware timestamps
     def getServerTime(self) -> datetime:
         self.tracer.info("executing RFC to get SAP server time")
         with self._getConnection() as connection:
@@ -177,7 +199,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return parsedResult
 
     #####
-    # internal RFC Client specific methods
+    # private methods to initiate RFC connections and fetch server timestamp
     #####
 
     # create fully qualified hostname if subdomain was provided
@@ -187,7 +209,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         else:
             return self.sapHostName
 
-    # establish connection to sap.
+    # establish rfc  connection to sap.
     def _getConnection(self) -> Connection:
         try:
             connection = Connection(ashost=self.fqdn, 
@@ -256,6 +278,12 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
 
         return parsedDateTime
 
+    #####
+    # private methods to perform two-phase call to first fetch most recent SMON run analysis identifier (guid)
+    # and then use that identifer to make a second call to fetch the full SMON analysis result set for that ID.
+    # Also methods to parse the responses from those RFC calls and to decorate metric results.
+    #####
+
     # make RFC call to fetch list of SDF/SMON snapshot identifiers in the given time range
     def _rfcGetSmonRunIds(self, 
                           connection: Connection, 
@@ -285,6 +313,8 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
     # parse result from /SDF/SMON_GET_SMON_RUNS and return Run ID GUID.
     def _parseSmonRunIdsResult(self, result):
         if 'SMON_RUNS' in result:
+            if (len(result['SMON_RUNS']) == 0):
+                raise ValueError("SMON_RUNS result list was empty!")
             if 'GUID' in result['SMON_RUNS'][0]:
                 return result['SMON_RUNS'][0]['GUID']
             else:
@@ -365,7 +395,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
     # take parsed SMON analysis result set and decorate each record with additional fixed set of 
     # properties expected for metrics records
     def _decorateSmonMetrics(self, records: list) -> None:
-        currentTimestamp = datetime.utcnow()
+        currentTimestamp = datetime.now(timezone.utc)
 
         # "DATUM": "20210212",
         # "TIME": "134300",
@@ -395,6 +425,10 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
 
             record['subdomain'] = self.sapSubdomain
             record['timestamp'] = currentTimestamp
+
+    #####
+    # private methods to make SWNC Workload snapshot call, parse results and return enriched ST03 metrics results
+    #####
 
     # call RFC SWNC_GET_WORKLOAD_SNAPSHOT and return result records
     def _rfcGetSwncWorkloadSnapshot(self, 
@@ -453,8 +487,8 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                             if taskTypeId in SAP_TASK_TYPE_MAPPINGS 
                             else '')
 
-            print("Raw ST03 result record:")
-            print(json.dumps(record, indent=4, cls=JsonEncoder))
+            #print("Raw ST03 result record:")
+            #print(json.dumps(record, indent=4, cls=JsonEncoder))
 
             processed_result = {
                 "Task Type": taskTypeId,
@@ -490,7 +524,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
     # take parsed SWNC result set and decorate each record with additional fixed set of 
     # properties needed for metrics records
     def _decorateSwncWorkloadMetrics(self, records: list, queryWindowEnd: datetime) -> None:
-        currentTimestamp = datetime.utcnow()
+        currentTimestamp = datetime.now(timezone.utc)
 
         for record in records:
             record['serverTimestamp'] = queryWindowEnd

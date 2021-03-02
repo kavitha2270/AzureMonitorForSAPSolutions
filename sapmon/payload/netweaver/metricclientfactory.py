@@ -24,7 +24,7 @@ class NetWeaverMetricClient(ABC):
     @abstractmethod
     def getQueryWindow(self, 
                        lastRunTime: datetime,
-                       minimumRunIntervalSecs: int) -> tuple[datetime, datetime]:
+                       minimumRunIntervalSecs: int) -> tuple:
         pass
 
     # query sap instance to get current server time
@@ -43,7 +43,8 @@ class NetWeaverMetricClient(ABC):
         pass
 
 ##########
-# helper class to instantiate SAP NetWeaver Metric clients
+# helper class to instantiate SAP NetWeaver Metric clients while on requiringclients
+# to be aware of abstract base class
 ##########
 class MetricClientFactory:
 
@@ -64,12 +65,11 @@ class MetricClientFactory:
                                    sapPassword=kwargs.get("sapPassword", None),
                                    sapSid=kwargs.get("sapSid", None),
                                    columnFilterList=None,
-                                   serverTimeZone=None)
+                                   serverTimeZone=kwargs.get("serverTimeZone", None))
 
         except ImportError as importEx:
-            print("failed to import pyrfc module, unable to initialie RfcMetricClient: ", importEx)
-
+            tracer.error("failed to import pyrfc module, unable to initialize NetWeaverRfcClient: ", importEx)
         except Exception as ex:
-            print("Unexpected failure trying to create RfcMetricClient: ", ex)
+            tracer.error("Unexpected failure trying to create NetWeaverRfcClient: ", ex)
             
         return None
