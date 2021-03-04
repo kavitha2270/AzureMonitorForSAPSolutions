@@ -1,11 +1,12 @@
 # Python modules
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from time import time
 from typing import Any, Callable
 import requests
 from requests import Session
+from threading import Lock
 
 # SOAP Client modules
 from zeep import Client
@@ -15,17 +16,27 @@ from zeep.exceptions import Fault
 
 # Payload modules
 from const import *
-from helper.azure import *
+from helper.azure import AzureStorageAccount
 from helper.context import *
 from helper.tools import *
 from provider.base import ProviderInstance, ProviderCheck
+from netweaver.metricclientfactory import NetWeaverMetricClient, MetricClientFactory
+from netweaver.rfcsdkinstaller import PATH_RFC_SDK_INSTALL, SapRfcSdkInstaller
 from typing import Dict
 
 # Suppress SSLError warning due to missing SAP server certificate
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# wait time in between attempts to re-download and install RFC SDK package if we have a download blob
+# URL defined and previous install attempt was not successful
+MINIMUM_RFC_INSTALL_RETRY_INTERVAL = timedelta(minutes=30)
+
 class sapNetweaverProviderInstance(ProviderInstance):
+    # static / class variables to enforce singleton around rfc installation attempt
+    _isRfcInstalled = None
+    _rfcInstallerLock = Lock()
+
     def __init__(self,
                 tracer: logging.Logger,
                 ctx: Context,
@@ -36,6 +47,15 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.sapHostName = None
         self.sapInstanceNr = None
         self.sapSubdomain = None
+
+        # RFC SDK call settings
+        self.sapUsername = None
+        self.sapPassword = None
+        self.sapClientId = None
+        self.sapRfcSdkBlobUrl = None
+
+        # provider instance flag
+        self._areRfcCallsEnabled = None
 
         retrySettings = {
             "retries": 3,
@@ -72,6 +92,23 @@ class sapNetweaverProviderInstance(ProviderInstance):
         if not self.sapSid:
             self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
             return False
+
+        self.sapUsername = self.providerProperties.get('sapUsername', None)
+        self.sapPassword = self.providerProperties.get('sapPassword', None)
+
+        # REMOVE:  throwaway to make testing work with earlier OData change
+        if (not self.sapUsername):
+            self.sapUsername = self.providerProperties.get('sapOdataUsername', None)
+        
+        if (not self.sapPassword):
+            self.sapPassword = self.providerProperties.get('sapOdataPassword', None)
+
+        self.sapClientId = self.providerProperties.get('sapClientId', None)
+        self.sapRfcSdkBlobUrl = self.providerProperties.get('sapRfcSdkBlobUrl', None)
+
+        # TODO remove
+        self.sapClientId = "300"
+        self.sapRfcSdkBlobUrl = "https://sapmonsto75853a6503011a.blob.core.windows.net/sap-netweaver-rfc-sdk/nwrfc750P_7-70002752.zip"
 
         return True
 
@@ -218,6 +255,172 @@ class sapNetweaverProviderInstance(ProviderInstance):
 
         return isValid
 
+    """
+    returns flag to indicate whether provider checks should attempt to use RFC SDK client calls to fetch certain metrics.
+    First time may perform fairly expensive checks to validate if RFC SDK is installed anc configured, and may attempt
+    to download user provided blob to install to local system.  We only want to attempt this at most once per process,
+    so first caller to this function will pay that cost and the resulting success/failure flag will be cached.
+    """
+    def areRfcMetricsEnabled(self) -> bool:
+        if self._areRfcCallsEnabled != None:
+            # the flag for whether RFC is usable has already been initialzed, so return 
+            return self._areRfcCallsEnabled
+
+        # there may be 1..N sapNetWeaverProviderInstance instances per sapmon process, and each instance
+        # may choose to enable/disable RFC calls individually, but we should only attempt to install the 
+        # RFC SDK at most once per process.  Use a static/class variable to determine if installation 
+        # attempt has already been attempted and was success/failure, and do all this inside of 
+        # a lock and cache flag for future checks
+        try:
+            # class singleton lock
+            sapNetweaverProviderInstance._rfcInstallerLock.acquire(blocking=True)
+
+            # check -> lock -> check
+            if (self._areRfcCallsEnabled != None):
+                # flag was initialized prior to obtaining the lock
+                return self._areRfcCallsEnabled
+
+            # ensure this provider instance has necessary config settings to enable RFC SDK calls
+            if (not self.sapUsername or
+                not self.sapPassword or
+                not self.sapClientId or
+                not self.sapRfcSdkBlobUrl):
+                self.tracer.info("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
+                                "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl",
+                                 self.sapSid, 
+                                 self.sapHostName)
+                self._areRfcCallsEnabled = False
+                return False
+
+            # only attempt to install RFC SDK once per process execution
+            if (sapNetweaverProviderInstance._isRfcInstalled == None):
+                sapNetweaverProviderInstance._isRfcInstalled = self._trySetupRfcSdk()
+                
+            self._areRfcCallsEnabled = sapNetweaverProviderInstance._isRfcInstalled
+            
+            return self._areRfcCallsEnabled
+
+        except Exception as e:
+            self.tracer.error("Exception trying to check if rfc sdk metrics are enabled for %s|%s, %s",
+                              self.sapSid, 
+                              self.sapHostName,
+                              e)
+            sapNetweaverProviderInstance._isRfcInstalled = False
+            self._areRfcCallsEnabled = False
+
+        finally:
+            sapNetweaverProviderInstance._rfcInstallerLock.release()
+
+        return False
+    
+    """
+    validate that RFC SDK package has been installed and configured correctly and is usable by pyrfc module.
+    If pyrfc module cannot be imported, then potentially attempt to download RFC SDK blob, install to local system,
+    and configure necessary environment variables and system settings so that the libraries can be
+    successfully loaded by the pyrfc module.  
+    Return flag indicating whether pyrfc module can be imnported (ie. whether RFC calls are enabled)
+    """
+    def _trySetupRfcSdk(self) -> bool:
+        try:
+            # if no RFC SDK download blob url specified, treat as kill switch to disable any RFC calls
+            if (not self.sapRfcSdkBlobUrl):
+                self.tracer.info("No user provided RFC SDK blob url, will not leverage RFC SDK. quitting...")
+                return False
+
+            installer = SapRfcSdkInstaller(tracer=self.tracer, installPath=PATH_RFC_SDK_INSTALL)
+
+            # environment variables must be initialized before RFC and pyrfc installation can be validated
+            self.tracer.info("initializing RFC SDK environment...")
+            if (not installer.initRfcSdkEnvironment()):
+                self.tracer.error("failed to initialize rfc sdk environment pre-requisites")
+                return False
+
+            # if we are able to successfully import the pyrfc connector module, that means RFC SDK
+            # libraries must be installed and were able to be found by pyrfc package initialization,
+            # so no need to do any further checks.
+            if (installer.isPyrfcModuleUsable()):
+                # pyrfc package is usable, which means RFC SDK is already installed and environment configured correctly
+                self.tracer.info("Pyrfc module is usable, RFC calls will be enabled")
+                return True
+
+            # if pyrfc module cannot be imported, check to see if it is even installed.  Assumption is that
+            # pyrfc module is installed as part of container image, so if it is missing something is wrong
+            # there is no need to even try to install the RFC SDK
+            if (not installer.isPyrfcModuleInstalled()):
+                self.tracer.error("Pyrfc module is not installed, RFC calls will be disabled")
+                return False
+
+            # check last sdk install attempt time so we can limit how often we retry
+            # to download and install SDK on persistent failures (eg. no more than once every 30 mins)
+            lastSdkInstallAttemptTime = installer.getLastSdkInstallAttemptTime()
+            if (lastSdkInstallAttemptTime > (datetime.now(timezone.utc) - MINIMUM_RFC_INSTALL_RETRY_INTERVAL)):
+                self.tracer.info("last RFC SDK install attempt was %s, minimum attempt retry %s, skipping...",
+                                 lastSdkInstallAttemptTime, 
+                                 MINIMUM_RFC_INSTALL_RETRY_INTERVAL)
+                return False
+
+            self.tracer.info("RFC SDK is not installed, so attempt installation now...")
+            
+            
+            blobStorageAccount = AzureStorageAccount(tracer=self.tracer,
+                                                     sapmonId=self.ctx.sapmonId,
+                                                     msiClientId=self.ctx.msiClientId,
+                                                     subscriptionId=self.ctx.vmInstance["subscriptionId"],
+                                                     resourceGroup=self.ctx.vmInstance["resourceGroupName"])
+    
+            # first check that rfc sdk download blob exists in Azure Storage account, and if it 
+            # exixts also fetch the last_modified timestamp metadata
+            doesPackageExist, packageLastModifiedTime = installer.isRfcSdkAvailableForDownload(
+                blobUrl=self.sapRfcSdkBlobUrl, 
+                storageAccount=blobStorageAccount)
+
+            if (not doesPackageExist):
+                self.tracer.error("User provided RFC SDK blob does not exist %s, skipping...", self.sapRfcSdkBlobUrl)
+                return False
+            
+            self.tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s", 
+                        self.sapRfcSdkBlobUrl, packageLastModifiedTime)
+            
+            # the user provided sdk blob exists, so before we download compare the last_modified timestamp
+            # with the last modified time of the last download attempt.  If nothing has changed, 
+            # then no need to try and download the package again
+            # TODO:  confirm, should we go ahead and try to re-download previously failed packages
+            #        once every 30 minutes anyway?  just in case failure was something external?
+            lastInstallPackageModifiedTime = installer.getLastSdkInstallPackageModifiedTime()
+
+            if (packageLastModifiedTime == lastInstallPackageModifiedTime):
+                self.tracer.info("rfc sdk download package has not been modified since last download " +
+                                 "attempt (last_modified=%s), will not download again",
+                                 lastInstallPackageModifiedTime)
+                return False
+            
+            self.tracer.info("user provided rfc sdk package last_modified (%s) has changed " + 
+                             "since last package download (%s), attempting to re-download and install",
+                             packageLastModifiedTime,
+                             lastInstallPackageModifiedTime)
+
+            # try to download user provided RFC SDK blob, install to local system and configure necessary
+            # environment variables and system settings so that it can be usable by pyrfc module
+            if (not installer.downloadAndInstallRfcSdk(blobUrl=self.sapRfcSdkBlobUrl, storageAccount=blobStorageAccount)):
+                self.tracer.error("failed to install rfc sdk package, RFC calls will not be enabled...")
+                return False
+
+            # on Linux pyrfc module may not be usable upon first install attempt, as it appears that unpacking
+            # libraries to the LD_LIBRARY_PATH env variable after the python process starts may not pick up the change.
+            # The module should be usable on the next sapmon process run.
+            if (not installer.isPyrfcModuleUsable()):
+                self.tracer.error("pyrfc module still not usable after RFC SDK install, RFC calls will not be enabled...")
+                return False
+
+            self.tracer.info("pyrfc module is usable after RFC SDK install, RFC calls will be enabled...")
+            return True
+
+        except Exception as e:
+            self.tracer.error("exception trying to setup and validate RFC SDK, RFC calls will be disabled: %s", e)
+
+        return False
+
+
 ###########################
 class sapNetweaverProviderCheck(ProviderCheck):
     lastResult = []
@@ -226,9 +429,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
         provider: ProviderInstance,
         **kwargs
     ):
-        self.lastRunServer = None
+        super().__init__(provider, **kwargs)
         self.lastRunLocal = None
-        return super().__init__(provider, **kwargs)
+        self.lastRunServer = None
 
     def _getFormattedTimestamp(self) -> str:
         return datetime.utcnow().isoformat()
@@ -258,8 +461,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _parseResults(self, results: list) -> list:
         return helpers.serialize_object(results, dict)
 
-    def _getInstances(self) -> list:
+    def _getInstances(self, useCache: bool = True) -> list:
         self.tracer.info("[%s] getting list of system instances" % self.fullName)
+
+        # Use cached list of instances if available since they should not change within a single monitor run;
+        # but if cache is not available or if caller explicitly asks to skip cache then make the SOAP call
+        if ('hostConfig' in self.providerInstance.state and useCache):
+            self.tracer.info("[%s] using cached list of system instances", self.fullName)
+            return self.providerInstance.state['hostConfig']
 
         startTime = time()
 
@@ -332,8 +541,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
             try:
                 # We only care about the date in the response header. so we ignore the response body
+                # 'Thu, 04 Mar 2021 05:02:12 GMT'
                 response = requests.get(message_server_endpoint)
                 date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
+                self.tracer.info("[%s] received message server %s header: %s, parsed time: %s", 
+                                 self.fullName, 
+                                 message_server_endpoint, 
+                                 response.headers['date'],
+                                 date)
                 break
             except Exception as e:
                 self.tracer.info("[%s] suppressing expected error while fetching server time during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
@@ -342,7 +557,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _actionGetSystemInstanceList(self) -> None:
         self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
         self.lastRunLocal = datetime.utcnow()
-        instanceList = self._getInstances()
+        instanceList = self._getInstances(useCache=False)
         self.lastRunServer = self._getServerTimestamp(instanceList)
 
         # Update host config, if new list is fetched
@@ -430,6 +645,137 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResult)
+
+    def _actionGetSmonAnalysisMetrics(self) -> None:
+        # create simple SAP host|SID|instance string for consistent logging calls below
+        sapHostnameStr = "%s|%s|%s" % (self.providerInstance.sapHostName,
+                                       self.providerInstance.sapSid,
+                                       self.providerInstance.sapInstanceNr)
+
+        result = []
+        try:
+            if (not self.providerInstance.areRfcMetricsEnabled()):
+                self.tracer.info("[%s] Skipping SMON metrics for %s because RFC SDK metrics not enabled...", 
+                                 self.fullName, sapHostnameStr)
+                return
+
+            #instanceList = self._getInstances(useCache=True)
+            #currentServerTime = self._getServerTimestamp(instances=instanceList)
+
+            self.tracer.info("[%s] initializing client for %s", self.fullName, sapHostnameStr)
+
+            client = MetricClientFactory.getMetricClient(tracer=self.tracer, 
+                                                        logTag=self.fullName,
+                                                        sapHostName=self.providerInstance.sapHostName,
+                                                        sapSubdomain=self.providerInstance.sapSubdomain,
+                                                        sapSysNr=self.providerInstance.sapInstanceNr,
+                                                        sapSid=self.providerInstance.sapSid,
+                                                        sapClient=self.providerInstance.sapClientId,
+                                                        sapUsername=self.providerInstance.sapUsername,
+                                                        sapPassword=self.providerInstance.sapPassword,
+                                                        columnFilterList=None,
+                                                        serverTimeZone=None)
+            
+            if (not client):
+                raise Exception("failed to create RFC SDK metric client")
+            
+            # get metric query window in server time zone
+            (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
+                                                         minimumRunIntervalSecs=self.frequencySecs)
+            result = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
+
+            if (len(result) == 0):
+                # the SMON results for the current time window may not be available at the time we make the call,
+                # and in that case we don't update lastRunLocal/lastRunServer state until we get actual results back,
+                # this enables us to query for this same window for the next few runs in hope that results will show up
+                self.tracer.info("[%s] empty SMON analysis result set for %s", self.fullName, sapHostnameStr)
+                return
+
+            self.tracer.info("[%s] successfully queried SMON metrics for %s", self.fullName, sapHostnameStr)
+
+            self.lastRunLocal = datetime.now(timezone.utc)
+            self.lastRunServer = endTime
+
+            # only update state on successful query attempt
+            self.updateState()
+
+        except Exception as e:
+            self.tracer.error("[%s] exception trying to fetch SMON Analysis Run for metrics %s, error: %s", 
+                              self.fullName, 
+                              sapHostnameStr,
+                              e)
+            raise
+        finally:
+            # base class will always call generateJsonString(), so we must always be sure to set the lastResult
+            # regardless of success or failure
+            self.lastResult = result
+        
+
+    def _actionGetSwncWorkloadMetrics(self) -> None:
+        # create simple SAP host|SID|instance string for consistent logging calls below
+        sapHostnameStr = "%s|%s|%s" % (self.providerInstance.sapHostName,
+                                       self.providerInstance.sapSid,
+                                       self.providerInstance.sapInstanceNr)
+
+        result = []
+        try:
+            if (not self.providerInstance.areRfcMetricsEnabled()):
+                self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...", 
+                                 self.fullName, sapHostnameStr)
+                return
+
+            #instanceList = self._getInstances(useCache=True)
+            #currentServerTime = self._getServerTimestamp(instances=instanceList)
+
+            self.tracer.info("[%s] initializing SWNC RFC SDK metric client for %s", self.fullName, sapHostnameStr)
+
+            client = MetricClientFactory.getMetricClient(tracer=self.tracer, 
+                                                        logTag=self.fullName,
+                                                        sapHostName=self.providerInstance.sapHostName,
+                                                        sapSubdomain=self.providerInstance.sapSubdomain,
+                                                        sapSysNr=self.providerInstance.sapInstanceNr,
+                                                        sapSid=self.providerInstance.sapSid,
+                                                        sapClient=self.providerInstance.sapClientId,
+                                                        sapUsername=self.providerInstance.sapUsername,
+                                                        sapPassword=self.providerInstance.sapPassword,
+                                                        columnFilterList=None,
+                                                        serverTimeZone=None)
+            
+            if (not client):
+                raise Exception("failed to create RFC SDK metric client")
+            
+            # get metric query window in server time zone
+            (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
+                                                         minimumRunIntervalSecs=self.frequencySecs)
+
+            result = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
+
+            if (len(result) == 0):
+                # the workload metrics results for the current time window may not be available at the time we make the call,
+                # and in that case we don't update lastRunLocal/lastRunServer state until we get actual results back,
+                # this enables us to query for this same window for the next few runs in hope that results will show up
+                self.tracer.info("[%s] empty SWNC workload metrics result set for %s", self.fullName, sapHostnameStr)
+                return
+
+            self.tracer.info("[%s] successfully queried SWNC workload metrics for %s", self.fullName, sapHostnameStr)
+
+            self.lastRunLocal = datetime.now(timezone.utc)
+            self.lastRunServer = endTime
+
+            # only update state on successful query attempt
+            self.updateState()
+
+        except Exception as e:
+            self.tracer.error("[%s] exception trying to fetch SWNC workload metrics for %s, error: %s", 
+                              self.fullName, 
+                              sapHostnameStr,
+                              e)
+            raise
+        finally:
+            # base class will always call generateJsonString(), so we must always be sure to set the lastResult
+            # regardless of success or failure
+            self.lastResult = result
+
 
     def generateJsonString(self) -> str:
         self.tracer.info("[%s] converting result to json string" % self.fullName)

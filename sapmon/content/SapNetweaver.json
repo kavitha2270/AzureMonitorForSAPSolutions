@@ -3,7 +3,7 @@
         {
             "name": "GetSystemInstanceList",
             "description": "SAP Netweaver GetSystemInstanceList",
-            "customLog": "SapNetweaver_GetSystemInstanceList",
+            "customLog": "SapNetweaver_GetSystemInstanceList_mfrei",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
@@ -15,9 +15,10 @@
         {
             "name": "GetProcessList",
             "description": "SAP Netweaver GetProcessList",
-            "customLog": "SapNetweaver_GetProcessList",
+            "customLog": "SapNetweaver_GetProcessList_mfrei",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
+            "enabled": false,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -32,9 +33,10 @@
         {
             "name": "ABAPGetWPTable",
             "description": "SAP Netweaver ABAPGetWPTable",
-            "customLog": "SapNetweaver_ABAPGetWPTable",
+            "customLog": "SapNetweaver_ABAPGetWPTable_mfrei",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
+            "enabled": false,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -49,9 +51,10 @@
         {
             "name": "GetQueueStatistic",
             "description": "SAP Netweaver GetQueueStatistic",
-            "customLog": "SapNetweaver_GetQueueStatistic",
+            "customLog": "SapNetweaver_GetQueueStatistic_mfrei",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
+            "enabled": false,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
@@ -66,9 +69,10 @@
         {
             "name": "EnqGetStatistic",
             "description": "SAP Netweaver EnqGetStatistic",
-            "customLog": "SapNetweaver_EnqGetStatistic",
+            "customLog": "SapNetweaver_EnqGetStatistic_mfrei",
             "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
+            "enabled": false,
             "actions": [
                 {
                     "type": "ExecuteEnqGetStatistic",
@@ -77,6 +81,32 @@
                         "filterFeatures": ["ENQUE"],
                         "filterType": "include"
                     }
+                }
+            ]
+        },
+        {
+            "name": "SMON_Metrics",
+            "description": "SAP Netweaver SMON",
+            "customLog": "SapNetweaver_SMON_mfrei",
+            "frequencySecs": 300,
+            "includeInCustomerAnalytics": true,
+            "actions": [
+                {
+                    "type": "GetSmonAnalysisMetrics",
+                    "parameters": { }
+                }
+            ]
+        },
+        {
+            "name": "SWNC_Workload_Metrics",
+            "description": "SAP Netweaver SWNC",
+            "customLog": "SapNetweaver_SWNC_mfrei",
+            "frequencySecs": 300,
+            "includeInCustomerAnalytics": true,
+            "actions": [
+                {
+                    "type": "GetSwncWorkloadMetrics",
+                    "parameters": { }
                 }
             ]
         }
