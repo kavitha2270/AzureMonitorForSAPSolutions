@@ -151,7 +151,6 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
     # so that it be used for timezone aware comparisons against tz-aware timestamps
     def getServerTime(self) -> datetime:
         self.tracer.info("executing RFC to get SAP server time")
-
         with self._getConnection() as connection:
             # read current time from SAP NetWeaver.
             timestampResult = self._rfcGetSystemTime(connection)
@@ -187,7 +186,6 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                                startDateTime: datetime,
                                endDateTime: datetime) -> str:
         self.tracer.info("executing RFC SWNC_GET_WORKLOAD_SNAPSHOT check")
-
         with self._getConnection() as connection:
             snapshotResult = self._rfcGetSwncWorkloadSnapshot(connection,
                                                               startDateTime=startDateTime, 

@@ -659,9 +659,6 @@ class sapNetweaverProviderCheck(ProviderCheck):
                                  self.fullName, sapHostnameStr)
                 return
 
-            #instanceList = self._getInstances(useCache=True)
-            #currentServerTime = self._getServerTimestamp(instances=instanceList)
-
             self.tracer.info("[%s] initializing client for %s", self.fullName, sapHostnameStr)
 
             client = MetricClientFactory.getMetricClient(tracer=self.tracer, 
@@ -723,9 +720,6 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...", 
                                  self.fullName, sapHostnameStr)
                 return
-
-            #instanceList = self._getInstances(useCache=True)
-            #currentServerTime = self._getServerTimestamp(instances=instanceList)
 
             self.tracer.info("[%s] initializing SWNC RFC SDK metric client for %s", self.fullName, sapHostnameStr)
 
