@@ -227,35 +227,44 @@ x-ms-date:%s
 
 ###############################################################################
 
-# Provide access to an Azure Storage Queue (used for payload logging)
-class AzureStorageQueue():
+# Provide access to an Azure Storage Account (used for payload logging)
+class AzureStorageAccount():
     accountName = None
-    name = None
     resourceGroup = None
     subscriptionId = None
     token = {}
+    accountKey = None
     tracer = None
 
-    # Retrieve the name of the storage account and storage queue
+    # Retrieve the name of the storage account
     def __init__(self,
                  tracer: logging.Logger,
                  sapmonId: str,
                  msiClientId: str,
                  subscriptionId: str,
                  resourceGroup: str,
-                 queueName: str):
+                 accountKey: str = None):
         self.tracer = tracer
-        self.tracer.info("initializing Storage Queue instance")
+        self.tracer.info("initializing Storage Account instance")
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
-        self.name = queueName
+
+        # if initialized directly with account key, we can skip on Managed Service Identity credentials
+        if (accountKey is None):
+            self.token = ManagedIdentityCredential(client_id = msiClientId)
+        else:
+            self.accountKey = accountKey
         
-        self.token = ManagedIdentityCredential(client_id = msiClientId)
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
 
-    # Get the access key to the storage queue
+    # Get the access key to the storage account
     def getAccessKey(self) -> str:
-        self.tracer.info("getting access key for Storage Queue")
+        self.tracer.info("getting access key for Storage Account")
+
+        if (self.accountKey is not None):
+            # if account key was provided then no need to use storage client
+            return self.accountKey
+
         storageclient = StorageManagementClient(credential = self.token,
                                                 subscription_id = self.subscriptionId)
 
@@ -263,6 +272,6 @@ class AzureStorageQueue():
         storageKeys = storageclient.storage_accounts.list_keys(resource_group_name = self.resourceGroup,
                                                                account_name = self.accountName)
         if storageKeys is None or len(storageKeys.keys) == 0 :
-           self.log.error("could not retrieve storage keys of the storage account %s" % self.accountName)
+           self.tracer.error("could not retrieve storage keys of the storage account %s" % self.accountName)
            return None
         return storageKeys.keys[0].value
