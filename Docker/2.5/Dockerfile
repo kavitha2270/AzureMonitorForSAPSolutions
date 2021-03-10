@@ -18,7 +18,7 @@ RUN pip3 install msrestazure==0.6.4 hdbcli azure-storage==0.36.0 azure_storage_l
 # path override to be the anticipated nwrfcsdk install path so that if the user 
 # does provide an RFC SDK .zip file to install, we will be able to successfully import
 # the pyrfc module once the install has been done from the sapmon netweaver proivder code
-ENV LD_LIBRARY_PATH=/var/opt/microsoft/sapmon/${RELEASE}/sapmon/usrlibs/nwrfcsdk/lib
+ENV LD_LIBRARY_PATH=/var/opt/microsoft/sapmon/${RELEASE}/sapmon/usrlibs/nwrfcsdk/nwrfcsdk/lib
 RUN curl --location --output pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl https://github.com/SAP/PyRFC/releases/download/2.3.0/pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
