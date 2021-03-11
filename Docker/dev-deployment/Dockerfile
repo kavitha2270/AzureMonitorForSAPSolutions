@@ -24,8 +24,4 @@ RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 
-RUN mkdir -p /var/opt/microsoft/sapmon/cicd_master
-RUN cp -a cicd_master/* /var/opt/microsoft/sapmon/cicd_master
-ADD monitorapp.sh /var/opt/microsoft/sapmon/cicd_master/monitorapp.sh
-
 CMD []
