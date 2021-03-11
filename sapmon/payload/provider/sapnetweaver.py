@@ -728,8 +728,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
             # base class will always call generateJsonString(), so we must always be sure to set the lastResult
             # regardless of success or failure
             self.lastResult = result
-        
-
+    
+    """
+    netweaver provider check action to query for SWNC workload statistics and decorate with ST03 metric calculations
+    """
     def _actionGetSwncWorkloadMetrics(self) -> None:
         result = []
         try:
