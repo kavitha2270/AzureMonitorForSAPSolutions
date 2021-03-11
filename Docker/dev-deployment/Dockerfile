@@ -23,3 +23,5 @@ RUN curl --location --output pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl https://g
 RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
+
+CMD []
