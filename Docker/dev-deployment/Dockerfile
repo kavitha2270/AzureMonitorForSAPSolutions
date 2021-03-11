@@ -1,6 +1,6 @@
 FROM python:3.7-slim
 
-ARG RELEASE
+ARG REPO
 RUN apt-get update -y
 RUN apt-get install curl gnupg -y
 
@@ -24,6 +24,7 @@ RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 
-RUN git clone https://github.com/hsridharan/AzureMonitorForSAPSolutions.git
+# RUN git clone https://github.com/hsridharan/AzureMonitorForSAPSolutions.git
+RUN git clone ${RELEASE}
 
 CMD []
