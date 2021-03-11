@@ -24,6 +24,6 @@ RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 
-RUN git clone hhttps://github.com/hsridharan/AzureMonitorForSAPSolutions.git
+RUN git clone https://github.com/hsridharan/AzureMonitorForSAPSolutions.git
 
 CMD []
