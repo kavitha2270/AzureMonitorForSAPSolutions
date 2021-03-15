@@ -27,7 +27,8 @@ RUN pip3 install pynwrfc-2.3.0-cp37-cp37m-linux_x86_64.whl
 
 RUN ACCEPT_EULA=Y apt-get install msodbcsql17 -y
 RUN mkdir -p /var/opt/microsoft/sapmon/${RELEASE}
-RUN git clone https://github.com/Azure/AzureMonitorForSAPSolutions.git --branch ${RELEASE} ${RELEASE}
+# RUN git clone https://github.com/Azure/AzureMonitorForSAPSolutions.git --branch ${RELEASE} ${RELEASE}
+RUN git clone https://github.com/hsridharan/AzureMonitorForSAPSolutions.git --branch feature/SapRfcClientMetrics ${RELEASE}
 RUN cp -a ${RELEASE}/* /var/opt/microsoft/sapmon/${RELEASE}
 ADD monitorapp.sh /var/opt/microsoft/sapmon/${RELEASE}/monitorapp.sh
 CMD []
