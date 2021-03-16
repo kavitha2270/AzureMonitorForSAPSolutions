@@ -33,6 +33,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # URL defined and previous install attempt was not successful
 MINIMUM_RFC_INSTALL_RETRY_INTERVAL = timedelta(minutes=30)
 
+# timeout to use for all SOAP WSDL fetch and other API calls
+SOAP_API_TIMEOUT_SECS = 5
+
 class sapNetweaverProviderInstance(ProviderInstance):
     # static / class variables to enforce singleton behavior around rfc sdk installation attempts across all 
     # instances of SAP Netweaver provider
@@ -179,7 +182,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
         try:
             session = Session()
             session.verify = False
-            client = Client(url, transport=Transport(session=session))
+            client = Client(url, transport=Transport(session=session, timeout=SOAP_API_TIMEOUT_SECS, operation_timeout=SOAP_API_TIMEOUT_SECS))
             self.tracer.info("[%s] initialized SOAP client url: %s [%d ms]" % \
                              (self.fullName, url, TimeUtils.getElapsedMilliseconds(startTime)))
 
@@ -275,8 +278,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 not self.sapPassword or
                 not self.sapClientId or
                 not self.sapRfcSdkBlobUrl):
-                self.tracer.info("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
-                                "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl",
+                self.tracer.info(("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
+                                 "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl"),
                                  self.sapSid, 
                                  self.sapHostName)
                 self._areRfcCallsEnabled = False
@@ -682,6 +685,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _actionGetSmonAnalysisMetrics(self) -> None:
         result = []
         try:
+            # initialize hostname log string here to default of SID in case we cannot identify a specific dispatcher host
+            sapHostnameStr = self.providerInstance.sapSid
+
             if (not self.providerInstance.areRfcMetricsEnabled()):
                 self.tracer.info("[%s] Skipping SMON metrics for %s because RFC SDK metrics not enabled...", 
                                  self.fullName, self.providerInstance.sapSid)
@@ -735,6 +741,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _actionGetSwncWorkloadMetrics(self) -> None:
         result = []
         try:
+            # initialize hostname log string here to default of SID in case we cannot identify a specific dispatcher host
+            sapHostnameStr = self.providerInstance.sapSid
+
             if (not self.providerInstance.areRfcMetricsEnabled()):
                 self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...", 
                                  self.fullName, self.providerInstance.sapSid)
