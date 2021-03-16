@@ -84,7 +84,7 @@
             "name": "SMON_Metrics",
             "description": "SAP Netweaver SMON",
             "customLog": "SapNetweaver_SMON",
-            "frequencySecs": 300,
+            "frequencySecs": 60,
             "includeInCustomerAnalytics": true,
             "actions": [
                 {

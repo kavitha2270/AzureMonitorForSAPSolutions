@@ -549,8 +549,8 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                 "Total DB Dir Read Time": GetKeyValue(record, 'READDIRTI'),
                 "Total DB Seq Read Time": GetKeyValue(record, 'READSEQTI'),
                 "Total DB Chg Time": GetKeyValue(record, 'CHNGTI'),
-                "Total DB/Proc Time": GetKeyValue(record, 'DBP_COUNT'),
-                "Total DB/Proc Steps": GetKeyValue(record, 'DBP_TIME'),
+                "Total DB Proc Time": GetKeyValue(record, 'DBP_COUNT'),
+                "Total DB Proc Steps": GetKeyValue(record, 'DBP_TIME'),
                 "PHYREADCNT": GetKeyValue(record, 'PHYREADCNT'),
                 "PHYCHNGREC": GetKeyValue(record, 'PHYCHNGREC'),
                 "PHYCALLS": GetKeyValue(record, 'PHYCALLS'),
@@ -562,19 +562,19 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             else:
                 processed_result['ST03_Avg_Resp_Time'] = 0.0
 
-            # ST03 - Average CPU Time, Processing Time, and DB time ratio to Response Time
+            # ST03 - CPU Time, Processing Time, Queue, Roll Wait and DB times as % of Response Time
             if (GetKeyValue(record, 'RESPTI') != 0):
-                processed_result['ST03_Avg_Resp_%_CPU_Time'] = GetKeyValue(record, 'CPUTI') / GetKeyValue(record, 'RESPTI')
-                processed_result['ST03_Avg_Resp_%_Processing_Time'] = GetKeyValue(record, 'PROCTI') / GetKeyValue(record, 'RESPTI')
-                processed_result['ST03_Avg_Resp_%_DB_Time'] = processed_result['Total DB Time'] / GetKeyValue(record, 'RESPTI')
-                processed_result['ST03_Avg_Resp_%_Queue_Time'] = GetKeyValue(record, 'QUEUETI') / GetKeyValue(record, 'RESPTI')
-                processed_result['ST03_Avg_Resp_%_RollWait_Time'] = GetKeyValue(record, 'ROLLWAITTI') / GetKeyValue(record, 'RESPTI')
+                processed_result['ST03_CPU_Time'] = GetKeyValue(record, 'CPUTI') / GetKeyValue(record, 'RESPTI')
+                processed_result['ST03_Processing_Time'] = GetKeyValue(record, 'PROCTI') / GetKeyValue(record, 'RESPTI')
+                processed_result['ST03_DB_Time'] = processed_result['Total DB Time'] / GetKeyValue(record, 'RESPTI')
+                processed_result['ST03_Queue_Time'] = GetKeyValue(record, 'QUEUETI') / GetKeyValue(record, 'RESPTI')
+                processed_result['ST03_RollWait_Time'] = GetKeyValue(record, 'ROLLWAITTI') / GetKeyValue(record, 'RESPTI')
             else:
-                processed_result['ST03_Avg_Resp_%_CPU_Time'] = 0.0
-                processed_result['ST03_Avg_Resp_%_Processing_Time'] = 0.0
-                processed_result['ST03_Avg_Resp_%_DB_Time'] = 0.0
-                processed_result['ST03_Avg_Resp_%_Queue_Time'] = 0.0
-                processed_result['ST03_Avg_Resp_%_RollWait_Time'] = 0.0
+                processed_result['ST03_CPU_Time'] = 0.0
+                processed_result['ST03_Processing_Time'] = 0.0
+                processed_result['ST03_DB_Time'] = 0.0
+                processed_result['ST03_Queue_Time'] = 0.0
+                processed_result['ST03_RollWait_Time'] = 0.0
             
             # ST03 - Average DB direct read latency
             if (GetKeyValue(record, 'READDIRCNT') != 0):
