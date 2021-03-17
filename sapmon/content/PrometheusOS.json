@@ -5,6 +5,7 @@
                         "name": "PrometheusOSExporter_1min",
                         "description": "Export system data from the prometheus node_exporter every min",
                         "customLog": "Prometheus_OSExporter",
+                        "includeInCustomerAnalytics": true,
                         "frequencySecs": 60,
                         "actions": [
                             {
@@ -20,6 +21,7 @@
                         "name": "PrometheusOSExporter_15min",
                         "description": "Export system data from the prometheus node_exporter every 15 mins",
                         "customLog": "Prometheus_OSExporter",
+                        "includeInCustomerAnalytics": true,
                         "frequencySecs": 900,
                         "actions": [
                             {
@@ -36,6 +38,7 @@
                         "description": "Export system data from the prometheus node_exporter every day",
                         "customLog": "Prometheus_OSExporter",
                         "frequencySecs": 86400,
+                        "includeInCustomerAnalytics": true,
                         "actions": [
                             {
                                 "type": "FetchMetrics",
