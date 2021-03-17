@@ -745,7 +745,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapHostnameStr = self.providerInstance.sapSid
 
             if (not self.providerInstance.areRfcMetricsEnabled()):
-                self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...", 
+                self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...",
                                  self.fullName, self.providerInstance.sapSid)
                 return
 
@@ -782,7 +782,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             self.updateState()
 
         except Exception as e:
-            self.tracer.error("[%s] exception trying to fetch SWNC workload metrics for %s, error: %s", 
+            self.tracer.error("[%s] exception trying to fetch SWNC workload metrics for %s, error: %s",
                               self.fullName, 
                               sapHostnameStr,
                               e)
