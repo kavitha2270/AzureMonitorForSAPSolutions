@@ -4,5 +4,5 @@ Dockerfile to create configured images containing the data collector scripts to 
 
 ## Monitor
 ```bash
-docker run -t <image:tag> python3 /var/opt/microsoft/sapmon/v1.6/sapmon.py monitor
+docker run -t <image:tag> python3 /var/opt/microsoft/sapmon/2.10/sapmon.py monitor
 ```

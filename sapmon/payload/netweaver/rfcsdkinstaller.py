@@ -43,9 +43,12 @@ from helper.azure import AzureStorageAccount
 #     run the ldconfig tool as root to force rebuild of the library load mapping cache.  While this has convenience
 #     of being persistent and applying across processes and reboots, it is more difficult to automate and
 #     both the file change and rebuilding of ldconfig cache require running as root.
-#     NOTE #3: on linux it appears that any libraries installed to this path for the first time *after* the python 
-#     process starts up will not show up in library load attempts until after the python processing is restarted.
-#     In other words, on linux the libraries have to already be in this path before python starts up.
+#     NOTE #3: on linux it appears that any libraries can be installed to this path for the first time *after* the python 
+#     process starts so long as the directory exists (empty) at startup time.  If the directory in the LD_LIBRARY_PATH
+#     exists at python process startup and the libraries are extracted there during runtime, they will be successfully
+#     loaded by the pyrfc module at import time and usable.  However, if the directory does NOT exist at startup,
+#     then it appears the LD_LIBRARY_PATH will not be recognized and the RFC libraries will not be usable until the
+#     next time python process is restarted.
 # or
 # 2.b.) On windows, PATH environment variable must include ${installPath}\nwrfcsdk\lib but it appears this PATH
 #     variable can be updated in-process after python starts, and .dlls just have to be placed there before you 
@@ -108,9 +111,7 @@ PATH_USER_LIB_ROOT = os.path.join(PATH_ROOT, "usrlibs")
 PATH_RFC_SDK_INSTALL = os.path.join(PATH_USER_LIB_ROOT, "nwrfcsdk")
 
 LINUX_HOSTS_FILE = '/etc/hosts'
-#LINUX_LD_CONFIG_FILE = '/etc/ld.so.conf.d/nwrfcsdk.conf'
 RFC_SDK_INSTALLATION_STATE_FILE = 'rfc-sdk-installation-state.json'
-#PYRFC_MODULE_INSTALLATION_STATE_FILE = 'pyrfc-module-installation-state.json'
 
 
 # expected RFC SDK library file names
@@ -155,14 +156,6 @@ class SapRfcSdkInstaller:
         self.tracer.info("rfc sdk environment configured successfully")
         return True
 
-        # NOTE:  the below does not appear to be necessary if we instead leverage the 
-        # *much* easier to work with LD_LIBRARY_PATH env variable, but only downside is that
-        # LD_LIBRARY_PATH env variable must be set before sapmon.py is executed
-        # set linux shared library loading config path
-        #if (os.name != "nt"):
-        #    if (not self._isLinuxLibraryLoadConfigDefined()):
-        #        self._setLinuxLibraryLoadConfig()
-
     ###########
     # Public methods to validate pynwrfc python module is installed and usable (ie. can be imported)
     # and to attempt to invoke pip install process
@@ -206,45 +199,6 @@ class SapRfcSdkInstaller:
         
         return False
 
-    #"""
-    #invoke pip install to install pynwrfc module.  On linux this install will fail if
-    #the RFC SDK has not already been installed on system with expected environment variables set
-    #"""
-    #def installPyrfcModule(self) -> bool:
-    #    wasSuccessful = False
-    #
-    #    try:
-    #        completedProcess = subprocess.run(["pip", "install", "pynwrfc", "--no-binary", ":all:"], capture_output=True, text=True)
-    #
-    #        self.tracer.info("pip install pynwrfc return code: %s, stdout: %s, stderr: %s",
-    #                         completedProcess.returncode,
-    #                         completedProcess.stdout,
-    #                         completedProcess.stderr)
-    #
-    #        wasSuccessful = ("Successfully installed pynwrfc" in completedProcess.stdout 
-    #                         and completedProcess.returncode == 0)
-    #
-    #    except Exception as e:
-    #        self.tracer.error("exception trying to install pynwrfc module via pip: %s", e)
-    #
-    #    try:
-    #        # persist installation attempt timestamp and (if available) the last modified
-    #        # time of the downloaded sdk blob so we only update installation in future if it changes
-    #        self._writePyrfcModuleInstallationState(status='success' if wasSuccessful else 'failed', 
-    #                                                lastInstallAttemptTime=datetime.now(timezone.utc))
-    #    except Exception as e:
-    #        # failure to persist installation state file is treated as installation failure
-    #        wasSuccessful = False
-    #    
-    #    return wasSuccessful
-
-    #"""
-    #get timestamp of pip install attempt of python pyrfc module
-    #"""
-    #def getLastPyrfcModuleInstallAttemptTime(self) -> datetime:
-    #    state = self._readPyrfcModuleInstallationState()
-    #    return (state["lastInstallAttemptTime"] if state else datetime.min).replace(tzinfo=timezone.utc)
-
     ###########
     # Public methods to validate RFC SDK is installed on system, and if not download .zip file from
     # user provided blob URL if available and install on local system.
@@ -275,16 +229,6 @@ class SapRfcSdkInstaller:
         if (os.name != "nt"):
             if (not self._isLinuxHostnameInHostsFile()):
                 return False
-
-        # on linux, check to see if library loading config has mapping to rfc sdk /lib folder
-        #if (os.name != "nt"):
-        #    if (not self._isLinuxLibraryLoadConfigDefined()):
-        #        return False
-
-        ## finally, validate that the pyrfc module is installed and can be successfully imported
-        #if (not self._isPyRfcModuleAvailable()):
-        #    self.tracer.warn("RFC SDK is installed but pyrfc module is not available")
-        #    return False
         
         self.tracer.info("validated SAP RFC SDK is installed at path:%s", self.installPath)
         return True
@@ -599,147 +543,6 @@ COUNTER     2
                                 e)
             return False
 
-    #"""
-    #validate that linux library load config file for nwrfcsdk contains expected
-    #installation library path
-    #"""
-    #def _isLinuxLibraryLoadConfigDefined(self) -> bool:
-    #    if (os.name == "nt"):
-    #        return False
-    #    
-    #    # Linux ld.config file: /etc/ld.so.conf.d/nwrfcsdk.conf should contain self.libPath
-    #    try:
-    #        with open(LINUX_LD_CONFIG_FILE, 'r') as ldConfigFile:
-    #            lines = ldConfigFile.readlines()
-    #            for line in lines:
-    #                if self.libPath in line:
-    #                    self.tracer.info("%s file contains expected path: %s", LINUX_LD_CONFIG_FILE, self.libPath)
-    #                    return True
-    #
-    #            self.tracer.warn("%s file does not contain expected RFC library path: %s",
-    #                                LINUX_LD_CONFIG_FILE,
-    #                                self.libPath)
-    #
-    #    except FileNotFoundError as e:
-    #        self.tracer.warning("ld.config file %s does not exist", LINUX_LD_CONFIG_FILE)
-    #    except Exception as e:
-    #        self.tracer.warning("could not read ld config file %s (%s)", LINUX_LD_CONFIG_FILE, e)
-    #    
-    #    return False
-
-    #"""
-    #query linux dynamic library mappings cache and return flag indicating whether
-    #expected RFC SDK libary file paths were found
-    #"""
-    #def _areLinuxLibraryMappingsLoaded(self) -> bool:
-    #    if (os.name == "nt"):
-    #        return False
-    #
-    #    try:
-    #        completedProcess = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True)
-    #
-    #        self.tracer.info("rebuild dynamic library load cache 'ldconfig' return code: %s, stderr: %s",
-    #                        completedProcess.returncode,
-    #                        completedProcess.stdout,
-    #                        completedProcess.stderr)
-    #
-    #        if (len(completedProcess.stderr) != 0 or completedProcess.returncode != 0):
-    #            self.tracer.warn("'ldconfig -p' to query dynamic library cache failed")
-    #            return False
-    #
-    #        # ldconfig output will look like the following:
-    #        # libsapucum.so (libc6,x86-64) => /some/path/sdk-installpath/nwrfcsdk/lib/libsapucum.so
-    #        # libsapnwrfc.so (libc6,x86-64) => /some/path/sdk-installpath/nwrfcsdk/lib/libsapnwrfc.so
-    #        # libgssapi_krb5.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2
-    #        # libgssapi.so.3 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libgssapi.so.3
-    #        outputLines = completedProcess.stdout.splitlines()
-    #
-    #    except Exception as e:
-    #        self.tracer.error("exception trying to run 'ldconfig -p': %s", e)
-    #        return False
-    #
-    #    # now iterate through all dynamic library mapping output lines and 
-    #    # ensure that a mapping exists for each expected RFC SDK library at the 
-    #    # expected install path
-    #    wasSuccessful = True
-    #    for expectedFileName in RFC_SDK_EXPECTED_FILES:
-    #        expectedFilePath = os.path.join(self.libPath, expectedFileName)
-    #
-    #        # first filter dynamic library mappings down to subset of lines
-    #        # the reference the expected RFC SDK file name
-    #        libraryMappings = [line for line in outputLines if expectedFileName in line]
-    #
-    #        if (len(libraryMappings) == 0):
-    #            self.tracer.warn("no dynamic library mappings found for rfc sdk file: %s", expectedFileName)
-    #            wasSuccessful = False
-    #            continue
-    #        else:
-    #            self.tracer.info("dynamic library mappings for rfc sdk file: %s -> %s",
-    #                                    expectedFileName,
-    #                                    '|'.join(libraryMappings))
-    #        
-    #        if (len(libraryMappings) > 1):
-    #            # TODO: may want to treat as critical failure as likely means that rfc sdk
-    #            # libraries will be loaded from somewhere other than expected path,
-    #            # but for now just be tolerant
-    #            self.tracer.warn("multiple dynamic library mappings loaded for rfc sdk file: %s", expectedFileName)
-    #        
-    #        # finally ensure that a mapping exists for this file at the expected install path
-    #        #  ${installPath}/nwrfcsdk/lib 
-    #        expectedPathMappings = [line for line in libraryMappings if expectedFilePath in line]
-    #
-    #        if (len(expectedPathMappings) != 1):
-    #            self.tracer.warn("missing expected dynamic mapping path for rfc sdk file: %s", expectedFilePath)
-    #            wasSuccessful = False
-    #            continue
-    #    
-    #    return wasSuccessful
-
-    #"""
-    #ensure linux dynamic library loading config includes /lib folder of the rfc sdk install path
-    #"""
-    #def _setLinuxLibraryLoadConfig(self) -> bool:
-    #    if (os.name == "nt"):
-    #        return False
-    #    
-    #    # Linux ld.config file: /etc/ld.so.conf.d/nwrfcsdk.conf should contain libPath
-    #    try:
-    #        with open(LINUX_LD_CONFIG_FILE, 'w+') as ldConfigFile:
-    #            lines = ['# include sap nwrfcsdk\n', self.libPath + "\n"]
-    #            ldConfigFile.writelines(lines)
-    #
-    #        self.tracer.info("wrote ld.config file %s with path %s", LINUX_LD_CONFIG_FILE, self.libPath)
-    #        return True
-    #
-    #    except Exception as e:
-    #        self.tracer.error("failed to write rfc sdk ld config file %s with content: %s (%s)", 
-    #                            LINUX_LD_CONFIG_FILE, 
-    #                            self.libPath,
-    #                            e)
-    #        return False
-
-    #"""
-    #ensure linux dynamic library mappings cache is rebuilt to reflect new nwrfcsdk .conf config file
-    #"""
-    #def _refreshLinuxDynamicLibraryLoadingCache(self) -> bool:
-    #    if (os.name == "nt"):
-    #        return False
-    #    
-    #    try:
-    #        completedProcess = subprocess.run(["ldconfig"], capture_output=True, text=True)
-    #
-    #        self.tracer.info("rebuild dynamic library load cache 'ldconfig' return code: %s, stdout: %s, stderr: %s",
-    #                        completedProcess.returncode,
-    #                        completedProcess.stdout,
-    #                        completedProcess.stderr)
-    #
-    #        return (len(completedProcess.stderr) == 0 and completedProcess.returncode == 0)
-    #
-    #    except Exception as e:
-    #        self.tracer.error("exception trying to run 'ldconfig': %s", e)
-    #    
-    #    return False
-
     """
     ensure directory exists for us to download rfc sdk blob and unpack it
     """
@@ -799,53 +602,3 @@ COUNTER     2
                               self.sdkInstallStateFilePath,
                               e)
             raise
-
-    #"""
-    #persist pyrfc python module install state
-    #1.) status - whether last install attempt was 'success' or 'failed' 
-    #2.) lastInstallAttemptTime - timestamp of last install attempt to download and install
-    #3.) packageLastModifiedTime - last_modified timestamp (if available) of the rfc sdk blob that was downloaded.  
-    #These timestamps can be used by caller to determine if/when to retry installation periodically, 
-    #and to not attempt to download and reinstall if nothing has changed.
-    #"""
-    #def _writePyrfcModuleInstallationState(self, 
-    #                                  status: str, 
-    #                                  lastInstallAttemptTime: datetime):
-    #    
-    #    data = {'status': status,
-    #            'lastInstallAttemptTime': lastInstallAttemptTime}
-    #    try:
-    #        with open(self.pyrfcModuleInstallStateFilepath, "w+") as installStateFile:
-    #            jsonText = json.dumps(data, indent=4, cls=JsonEncoder)
-    #            installStateFile.write(jsonText)
-    #    except Exception as e:
-    #        self.tracer.error("Error writing pyrfc module installation state file: %s (%s", 
-    #                          self.pyrfcModuleInstallStateFilepath, 
-    #                          e)
-    #        raise
-
-    #"""
-    #read rfc sdk installation state file as json dictionary, or return default values if previous
-    #installation state was not found
-    #"""
-    #def _readPyrfcModuleInstallationState(self) -> Dict:
-    #    jsonData = {}
-    #
-    #    try:
-    #        # if file does not exist then return initial state iondicating no previous install attempts
-    #        if (not os.path.isfile(self.sdkInstallStateFilePath)):
-    #            return {'status': None, 
-    #                    'lastInstallAttemptTime': datetime.min}
-    #
-    #        # read previous installation attempt state file and deserialize from json
-    #        with open(self.pyrfcModuleInstallStateFilepath, "r") as installStateFile:
-    #            jsonText = installStateFile.read()
-    #        jsonData = json.loads(jsonText, object_hook=JsonDecoder.datetimeHook)
-    #
-    #        return jsonData
-    #
-    #    except Exception as e:
-    #        self.tracer.error("error trying to read pyrfc python module installation state file: %s (%s)", 
-    #                          self.pyrfcModuleInstallStateFilepath,
-    #                          e)
-    #        raise
