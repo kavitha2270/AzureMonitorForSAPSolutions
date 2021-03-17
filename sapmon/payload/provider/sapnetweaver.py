@@ -278,8 +278,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 not self.sapPassword or
                 not self.sapClientId or
                 not self.sapRfcSdkBlobUrl):
-                self.tracer.info(("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
-                                 "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl"),
+                self.tracer.info("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
+                                 "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl",
                                  self.sapSid, 
                                  self.sapHostName)
                 self._areRfcCallsEnabled = False
@@ -376,7 +376,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 self.tracer.error("User provided RFC SDK blob does not exist %s, skipping...", self.sapRfcSdkBlobUrl)
                 return False
             
-            self.tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s", 
+            self.tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s",
                         self.sapRfcSdkBlobUrl, packageLastModifiedTime)
             
             # the user provided sdk blob exists, so before we download compare the last_modified timestamp
@@ -555,7 +555,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
                                     % (response.status_code, response.reason, message_server_endpoint))
 
                 date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
-                self.tracer.info("[%s] received message server %s header: %s, parsed time: %s", 
+                self.tracer.info("[%s] received message server %s header: %s, parsed time: %s",
                                  self.fullName, 
                                  message_server_endpoint, 
                                  response.headers['date'],

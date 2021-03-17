@@ -126,8 +126,8 @@ class tracing:
            ctx) -> None:
       # Provide access to custom (payload-specific) fields
       oldFactory = logging.getLogRecordFactory()
-      def recordFactory(*args, **kwargs):
-         record = oldFactory(*args, **kwargs)
+      def recordFactory(name, level, fn, lno, msg, *args, exc_info, func=None, sinfo=None, **kwargs):
+         record = oldFactory(name, level, fn, lno, msg, args, exc_info, func, sinfo, kwargs)
          record.sapmonid = ctx.sapmonId
          record.payloadversion = PAYLOAD_VERSION
          return record
