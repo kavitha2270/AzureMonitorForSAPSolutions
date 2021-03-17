@@ -37,17 +37,25 @@ class JsonFormatter(logging.Formatter):
    # Combines any supplied fields with the log record msg field into an object to convert to JSON
    def _getJsonData(self,
                     record: logging.LogRecord) -> OrderedDict():
+      
+      # the logging.Logger APIs take a (msg, *args) with expectation that msg can be a string format
+      # and args escaping will be done by logging API.  For this customer JSON formatter, need to 
+      # ensure the string formatting is done on the message before we return transformed JSON.
+      formattedMsg = record.msg
+      if (len(record.args) > 0):
+         formattedMsg = record.msg % record.args
+
       if len(self.fieldMapping.keys()) > 0:
          # Build a temporary list of tuples with the actual content for each field
          jsonContent = []
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
-         jsonContent.append(("msg", record.msg))
+         jsonContent.append(("msg", formattedMsg))
 
          # An OrderedDict is used to ensure that the converted data appears in the same order for every record
          return OrderedDict(jsonContent)
       else:
-         return record.msg
+         return formattedMsg
 
    # Overridden from the parent class to take a log record and output a JSON-formatted string
    def format(self,
