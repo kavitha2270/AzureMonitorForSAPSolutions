@@ -209,16 +209,56 @@ class sapNetweaverProviderInstance(ProviderInstance):
             raise e
 
     def validate(self) -> bool:
-        self.tracer.info("[%s] connecting to sap to test SOAP API connectivity" % self.fullName)
+        logTag = "[%s][%s][validation]" % (self.fullName, self.sapSid)
 
         # HACK: Load content json to fetch the list of APIs in the checks
         self.initContent()
 
         try:
+            self._validateSoapClient()
+        except Exception as e:
+            self.tracer.error("%s SOAP API validation failure: %s", logTag, e)
+            return False
+
+        try:
+            self._validateRfcClient()
+        except Exception as e:
+            self.tracer.error("%s RFC client validation failure: %s", logTag, e)
+            return False
+
+        return True
+
+
+    """
+    iterate through all SOAP API calls and attempt to validate that SOAP API client can be instantiated
+    and expected APIs are callable
+    """
+    def _validateSoapClient(self) -> None:
+        ###
+        # TODO:  this entire function needs to be rethought to me more precise in terms of which instances
+        #        are called for which APIs, as some APIs will not work for some function types.  
+        ###
+
+        logTag = "[%s][%s][validation]" % (self.fullName, self.sapSid)
+
+        # hard-coded list of checks that correspond to SOAP API calls to validate
+        soapApiChecks = ['GetSystemInstanceList', 
+                         'GetProcessList', 
+                         'ABAPGetWPTable',
+                         'GetQueueStatistic',
+                         'EnqGetStatistic']
+
+        self.tracer.info("%s connecting to sap to validate SOAP API connectivity", logTag)
+
+        try:
             client = self.getDefaultClient(hostname=self.sapHostName, instance=self.sapInstanceNr)
         except Exception as e:
-            self.tracer.error("[%s] error occured while establishing connectivity to SAP server: %s " % (self.fullName, e))
-            return False
+            self.tracer.error("%s error occured while initializing SOAP client to SAP server: %s|%s, %s", 
+                              logTag, 
+                              self.sapHostName, 
+                              self.sapInstanceNr, 
+                              e)
+            raise
 
         # Ensure that all APIs in the checks are valid and are marked as unprotected.
         # Some APIs are compatible with only specific instance types and throw a Fault if run against
@@ -229,24 +269,53 @@ class sapNetweaverProviderInstance(ProviderInstance):
         isValid = True
         for check in self.checks:
             apiName = check.name
+
+            if (apiName not in soapApiChecks):
+                # this is not a SOAP API check
+                continue
+
             method = getattr(client.service, apiName, None) # Returning None when API not found
             if method is None:
-                self.tracer.error("[%s] validation failure: api %s does not exist" % (self.fullName, apiName))
+                self.tracer.error("%s SOAP client failure: api %s does not exist for %s", logTag, apiName, client.wsdl.location)
                 isValid = False
             else:
                 try:
                     self.callSoapApi(client, apiName)
-                    self.tracer.info("[%s] validated api %s" % (self.fullName, apiName))
+                    self.tracer.info("%s validated SOAP api %s for %s", logTag, apiName, client.wsdl.location)
                 except Fault as e:
                     if (e.code == "SOAP-ENV:Client" and e.message == "HTTP Error: 'Unauthorized'"):
                         isValid = False
-                        self.tracer.error("[%s] api %s is not marked as unprotected: %s " % (self.fullName, apiName, e))
+                        self.tracer.error("%s SOAP api %s is protected for %s, %s ", logTag, apiName, client.wsdl.location, e)
                     else:
-                        self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
+                        self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s", logTag, apiName, client.wsdl.location, e)
                 except Exception as e:
-                    self.tracer.error("[%s] suppressing error during validation of api %s: %s " % (self.fullName, apiName, e))
+                    self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s ", logTag, apiName, client.wsdl.location, e)
 
-        return isValid
+        if (not isValid):
+            raise Exception("%s one or more SOAP APIs failed validation" % (logTag))
+ 
+    """
+    if customer provided RFC SDK configuration, then validate that all required properties are specified
+    and validate we can establish RFC client connections to APIs we need to call
+    """
+    def _validateRfcClient(self) -> None:
+        # are any RFC SDK config properties populated?
+        if (not self.sapUsername or
+            not self.sapPassword or
+            not self.sapClientId or
+            not self.sapRfcSdkBlobUrl):
+            # customer has not chosen to enable RFC SDK, nothing to validate
+            return
+
+        # are ALL RFC SDK config properties populated?
+        if (not self.sapUsername and
+            not self.sapPassword and
+            not self.sapClientId and
+            not self.sapRfcSdkBlobUrl):
+            # customer specified only partial set of config properties needed to enable RFC, so fail validation
+            raise Exception("must specify all properties to enable RFC metric collection:  Username, Password, ClientId, and RfcSdkBlobUrl")
+
+        # TODO: fetch instance list, filter to ABAP or MESSAGESERVER instances, and make all RFC client API calls
 
     """
     returns flag to indicate whether provider checks should attempt to use RFC SDK client calls to fetch certain metrics.
