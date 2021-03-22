@@ -93,6 +93,18 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         super().__init__(tracer, logTag)
 
     #####
+    # public property getter methods
+    #####
+
+    @property
+    def Hostname(self) -> str:
+        return self.sapHostName
+
+    @property
+    def InstanceNr(self) -> str:
+        return str(self.sapSysNr)
+
+    #####
     # public methods to implement abstract base class interface methods for NetWeaverMetricClient.
     #####
 

@@ -62,6 +62,9 @@ class sapNetweaverProviderInstance(ProviderInstance):
         # provider instance flag for whether RFC calls should be enabled for this specific Netweaver provider instance
         self._areRfcCallsEnabled = None
 
+        # cache WSDL SOAP clients so we can re-use them across checks for the same provider and cut down off-box calls
+        self._soapClientCache = {}
+
         retrySettings = {
             "retries": 1,
             "delayInSeconds": 1,
@@ -75,27 +78,30 @@ class sapNetweaverProviderInstance(ProviderInstance):
                        skipContent,
                        **kwargs)
 
+        # provider level common logging prefix
+        self.logTag = "[%s][%s]" % (self.fullName, self.sapSid)
+
     """
     parse provider properties and get sid, host name and instance number
     """
     def parseProperties(self) -> bool:
         self.sapHostName = self.providerProperties.get("sapHostName", None)
         if not self.sapHostName:
-            self.tracer.error("[%s] sapHostName cannot be empty" % self.fullName)
+            self.tracer.error("%s sapHostName cannot be empty", self.logTag)
             return False
 
         instanceNr = self.providerProperties.get("sapInstanceNr", None)
         if instanceNr is None: # 0 is an acceptable value for Instance Number
-            self.tracer.error("[%s] sapInstanceNr cannot be empty" % self.fullName)
+            self.tracer.error("%s sapInstanceNr cannot be empty", self.logTag)
             return False
         if not type(instanceNr) is int or instanceNr < 0 or instanceNr > 98:
-            self.tracer.error("[%s] sapInstanceNr can only be between 00 and 98 but %s was passed" % (self.fullName, str(instanceNr)))
+            self.tracer.error("%s sapInstanceNr can only be between 00 and 98 but %s was passed", self.logTag, str(instanceNr))
             return False
         self.sapInstanceNr = str(instanceNr).zfill(2)
         self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
         self.sapSid = self.metadata.get("sapSid", "")
         if not self.sapSid:
-            self.tracer.error("[%s] sapSid cannot be empty" % self.fullName)
+            self.tracer.error("%s sapSid cannot be empty", self.logTag)
             return False
 
         self.sapUsername = self.providerProperties.get('sapUsername', None)
@@ -142,71 +148,103 @@ class sapNetweaverProviderInstance(ProviderInstance):
         startTime = time()
         for port,protocol in portList:
             startTime = time()
-            self.tracer.info("[%s] attempting to fetch default client for hostname=%s on %s port %s" % \
-                         (self.fullName, hostname, protocol, port))
+            self.tracer.info("%s attempting to fetch default client for hostname=%s on %s port %s",
+                             self.logTag, hostname, protocol, port)
             try:
                 client = self.getClient(hostname, httpProtocol=protocol, port=port)
                 return client
             except Exception as e:
                 exceptionDetails = e
-                self.tracer.info("[%s] error fetching default client hostname=%s on %s port %s: %s [%d ms]" % \
-                            (self.fullName, self.sapHostName, protocol, port, e, TimeUtils.getElapsedMilliseconds(startTime)))
+                self.tracer.info("%s error fetching default client hostname=%s on %s port %s: %s [%d ms]",
+                                 self.logTag, self.sapHostName, protocol, port, e, TimeUtils.getElapsedMilliseconds(startTime))
 
-        self.tracer.error("[%s] error fetching default client hostname=%s on port %s : %s [%d ms]" % \
-                         (self.fullName, self.sapHostName, portList, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime)))
+        self.tracer.error("[%s] error fetching default client hostname=%s on port %s : %s [%d ms]",
+                           self.logTag, self.sapHostName, portList, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime))
         raise exceptionDetails
 
     """
     attempt to create a SOAP client for the specified hostname using specific protocol and port
     (for when we already have a known hostconfig for this hostname, and already know whether HTTPS or HTTP should be used)
+    Store successful clients in cache so we don't make unnecessary WSDL fetchs for future API calls to the same instance
     """
     def getClient(self, 
                   hostname: str, 
                   httpProtocol: str, 
-                  port: str) -> Client:
+                  port: str,
+                  useCache: bool = True) -> Client:
 
         if not hostname or not httpProtocol or not port:
-            raise Exception("[%s] cannot create client with empty httpProtocol, hostname or port (%s:%s:%s)" % \
-                            (self.fullName, httpProtocol, hostname, port))
+            raise Exception("%s cannot create client with empty httpProtocol, hostname or port (%s:%s:%s)" % \
+                            (self.logTag, httpProtocol, hostname, port))
 
         if httpProtocol != "http" and httpProtocol != "https":
-            raise Exception("[%s] httpProtocol %s is not valid for hostname: %s, port: %s" % \
-                            (self.fullName, httpProtocol, hostname, port))
+            raise Exception("%s httpProtocol %s is not valid for hostname: %s, port: %s" % \
+                            (self.logTag, httpProtocol, hostname, port))
 
         hostname = self.getFullyQualifiedDomainName(hostname)
         url = '%s://%s:%s/?wsdl' % (httpProtocol, hostname, port)
 
-        self.tracer.info("[%s] connecting to wsdl url: %s" % (self.fullName, url))
+        if (useCache and url in self._soapClientCache):
+            soapClient = self._soapClientCache[url]
+            if (soapClient):
+                # self.tracer.debug("%s using cached SOAP client for wsdl: %s", self.logTag, url)
+                return soapClient
+            else:
+                raise Exception("%s cached SOAP client failure for wsdl: %s" % (self.logTag, url))
+
+        self.tracer.info("%s connecting to wsdl url: %s", self.logTag, url)
 
         startTime = time()
         try:
             session = Session()
             session.verify = False
             client = Client(url, transport=Transport(session=session, timeout=SOAP_API_TIMEOUT_SECS, operation_timeout=SOAP_API_TIMEOUT_SECS))
-            self.tracer.info("[%s] initialized SOAP client url: %s [%d ms]" % \
-                             (self.fullName, url, TimeUtils.getElapsedMilliseconds(startTime)))
+            self.tracer.info("%s initialized SOAP client url: %s [%d ms]",
+                             self.logTag, url, TimeUtils.getElapsedMilliseconds(startTime))
 
+            # cache this successful client for future API calls
+            self._soapClientCache[url] = client
             return client
         except Exception as e:
-            self.tracer.error("[%s] error fetching wsdl url: %s: %s [%d ms]" % \
-                              (self.fullName, url, e, TimeUtils.getElapsedMilliseconds(startTime)))
+            # cache this failed client so we don't retry on future API calls
+            self._soapClientCache[url] = None
+            self.tracer.error("%s error fetching wsdl url: %s: %s [%d ms]",
+                              self.logTag, url, e, TimeUtils.getElapsedMilliseconds(startTime))
             raise e
 
     def callSoapApi(self, client: Client, apiName: str) -> str:
-        self.tracer.info("[%s] executing SOAP API: %s for wsdl: %s" % (self.fullName, apiName, client.wsdl.location))
+        self.tracer.info("%s executing SOAP API: %s for wsdl: %s", self.logTag, apiName, client.wsdl.location)
 
         startTime = time()
         try:
             method = getattr(client.service, apiName)
             result = method()
-            self.tracer.info("[%s] successful SOAP API: %s for wsdl: %s [%d ms]" % \
-                             (self.fullName, apiName, client.wsdl.location, TimeUtils.getElapsedMilliseconds(startTime)))
+            self.tracer.info("%s successful SOAP API: %s for wsdl: %s [%d ms]",
+                             self.logTag, apiName, client.wsdl.location, TimeUtils.getElapsedMilliseconds(startTime))
 
             return result
         except Exception as e:
-            self.tracer.error("[%s] error while calling SOAP API: %s for wsdl: %s: %s [%d ms]" % \
-                             (self.fullName, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime)))
+            self.tracer.error("%s error while calling SOAP API: %s for wsdl: %s: %s [%d ms]",
+                              self.logTag, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime))
             raise e
+
+    """
+    return a netweaver RFC client initialized with the first healthy ABAP/dispatcher instance we find
+    for this SID.  If no healthy ABAP instances, this method will throw exception
+    """
+    def getRfcClient(self, logTag: str) -> NetWeaverMetricClient:
+        # RFC connections against direct application server instances can only be made to 'ABAP' instances
+        dispatcherInstance = self.getActiveDispatcherInstance()
+
+        return MetricClientFactory.getMetricClient(tracer=self.tracer, 
+                                                   logTag=logTag,
+                                                   sapHostName=dispatcherInstance['hostname'],
+                                                   sapSysNr=str(dispatcherInstance['instanceNr']),
+                                                   sapSubdomain=self.sapSubdomain,
+                                                   sapSid=self.sapSid,
+                                                   sapClient=str(self.sapClientId),
+                                                   sapUsername=self.sapUsername,
+                                                   sapPassword=self.sapPassword)
 
     def validate(self) -> bool:
         logTag = "[%s][%s][validation]" % (self.fullName, self.sapSid)
@@ -227,7 +265,6 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return False
 
         return True
-
 
     """
     iterate through all SOAP API calls and attempt to validate that SOAP API client can be instantiated
@@ -299,6 +336,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
     and validate we can establish RFC client connections to APIs we need to call
     """
     def _validateRfcClient(self) -> None:
+        logTag = "[%s][%s][validation]" % (self.fullName, self.sapSid)
+
         # are any RFC SDK config properties populated?
         if (not self.sapUsername or
             not self.sapPassword or
@@ -315,7 +354,164 @@ class sapNetweaverProviderInstance(ProviderInstance):
             # customer specified only partial set of config properties needed to enable RFC, so fail validation
             raise Exception("must specify all properties to enable RFC metric collection:  Username, Password, ClientId, and RfcSdkBlobUrl")
 
-        # TODO: fetch instance list, filter to ABAP or MESSAGESERVER instances, and make all RFC client API calls
+        if (not self._areRfcMetricsEnabled()):
+            raise Exception("RFC SDK failed to install and is not usable")
+
+        # initialize a client for the first healthy ABAP/Dispatcher instance we find
+        client = self.providerInstance.getRfcClient(logTag=logTag)
+
+        # update logging prefix with the specific instance details of the client
+        sapHostnameStr = "%s|%s" % (client.Hostname, client.InstanceNr)
+        
+        # get metric query window to lookback 10 minutes to see if any results are available.  If not that probably
+        # indicates customer has not enabled SMON on their SAP system
+        self.tracer.info("%s attempting to fetch server timestamp from %s", logTag, sapHostnameStr)
+        (startTime, endTime) = client.getQueryWindow(lastRunServerTime=None, 
+                                                     minimumRunIntervalSecs=600)
+
+        self.tracer.info("%s attempting to fetch SMON metrics from %s", logTag, sapHostnameStr)
+        result = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
+        self.tracer.info("%s successfully queried SMON metrics from %s", logTag, sapHostnameStr)
+
+        self.tracer.info("%s attempting to fetch SWNC workload metrics from %s", logTag, sapHostnameStr)
+        result = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
+        self.tracer.info("%s successfully queried SWNC workload metrics from %s", logTag, sapHostnameStr)
+
+        self.tracer.info("%s successfully validated all known RFC SDK calls", logTag)
+
+    """
+    query SAP SOAP API to return list of all instances in the SID, but if caller specifies that cached results are okay
+    and we have cached instance list with the provider instance, then just return the cached results
+    """
+    def getInstances(self, 
+                     filterFeatures: list = None , 
+                     filterType: str = None, 
+                     useCache: bool = True) -> list:
+        # Use cached list of instances if available since they should not change within a single monitor run;
+        # but if cache is not available or if caller explicitly asks to skip cache then make the SOAP call
+        if ('hostConfig' in self.state and useCache):
+            # self.tracer.debug("%s using cached list of system instances", self.logTag)
+            return self.filterInstancesByFeature(self.state['hostConfig'], filterFeatures=filterFeatures, filterType=filterType)
+
+        self.tracer.info("%s getting list of system instances", self.logTag)
+        startTime = time()
+
+        instanceList = []
+        hosts = self._getHosts()
+
+        # Use last known hosts to fetch the updated list of hosts
+        # Walk through the known hostnames and stop whenever any of them returns the list of all instances
+        isSuccess = False
+        for host in hosts:
+            hostname, instanceNum, httpProtocol, port = host[0], host[1], host[2], host[3]
+
+            try:
+                apiName = 'GetSystemInstanceList'
+
+                # if we have a cached host config with already defined protocol and port, then we can initialize
+                # client directly from that, otherwise we have to instantiate client using ports derived from the instance number
+                # which will try the derived HTTPS port first and then fallback to derived HTTP port
+                if (not httpProtocol or not port):
+                    client = self.getDefaultClient(hostname=hostname, instance=instanceNum)
+                else:
+                    client = self.getClient(hostname, httpProtocol, port)
+
+                result = self.callSoapApi(client, apiName)
+                instanceList = self._parseResults(result)
+
+                # cache latest results in provider state
+                self.state['hostConfig'] = instanceList
+
+                isSuccess = True
+                break
+            except Exception as e:
+                self.tracer.error("%s could not connect to SAP with hostname: %s and port: %s", self.logTag, hostname, port)
+
+        if not isSuccess:
+            raise Exception("%s could not connect to any SAP instances with hosts %s [%d ms]" % \
+                            (self.logTag, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
+
+        self.tracer.info("%s finished getting all system instances [%d ms]", self.logTag, TimeUtils.getElapsedMilliseconds(startTime))
+
+        return self.filterInstancesByFeature(instanceList, filterFeatures=filterFeatures, filterType=filterType)
+
+    """
+    fetch cached instance list for this provider and filter down to the list 'ABAP' feature functions
+    that are healthy (ie. have dispstatus attribute of 'SAPControl-GREEN').  Just return first in the list.
+    """
+    def getActiveDispatcherInstance(self):
+        # Use cached list of instances if available since they don't change that frequently,
+        # and filter down to only healthy dispatcher instances since RFC direct application server connection
+        # only works against dispatchera
+        dispatcherInstances = self.getInstances(filterFeatures=['ABAP'], filterType='include', useCache=True)
+        healthyInstances = [instance for instance in dispatcherInstances if 'GREEN' in instance['dispstatus']]
+
+        if (len(healthyInstances) == 0):
+            raise Exception("No healthy ABAP/dispatcher instance found for %s" % self.sapSid)
+
+        # return first healthy instance in list
+        return healthyInstances[0]
+
+    """
+    given a list of sap instances and a set of instance features (ie. functions) to include or exclude,
+    apply filtering logic and return only those instances that match the filter conditions:
+        'include' filter type will include any instance that matches any of the feature filters
+        'exclude' filter type will exclude any instance that matches any of the feature filters
+    """
+    def filterInstancesByFeature(self, 
+                                 sapInstances: list, 
+                                 filterFeatures: list = None, 
+                                 filterType: str = None) -> list:
+        if (not filterFeatures or len(filterFeatures) == 0 or not sapInstances):
+            return sapInstances
+    
+        self.tracer.info("%s filtering list of system instances based on features: %s", self.logTag, filterFeatures)
+
+        instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
+       
+        if filterType == "include":
+            # Inclusion filter
+            # Only include instances that match at least one of the filter features
+            filtered_instances = [instance for (instance, instance_features) in instances \
+                if not set(filterFeatures).isdisjoint(set(instance_features))]
+        elif filterType == "exclude":
+            # Exclusion filter
+            # Only include instance that match none of the filter features
+            filtered_instances = [instance for (instance, instance_features) in instances \
+                if set(filterFeatures).isdisjoint(set(instance_features))]
+        else:
+            raise Exception("%s filterType '%s' is not supported filter type" % (self.logTag, filterType))
+
+        return filtered_instances
+
+    """
+    helper method to deserialize result and return as list of dictionary objects
+    """
+    def _parseResults(self, results: list) -> list:
+        return helpers.serialize_object(results, dict)
+
+    """
+    private method to return default provider hostname config (what customer provided at time netweaver provided was added)
+    or a fully fleshed out list of <hostname / instance # / https:Port> tuples based on a previous cached call to getInstances()
+    """
+    def _getHosts(self) -> list:
+        # Fetch last known list from storage. If storage does not have list, use provided
+        # hostname and instanceNr
+        if 'hostConfig' not in self.state:
+            self.tracer.info("%s no host config persisted yet, using user-provided host name and instance nr", self.logTag)
+            hosts = [(self.sapHostName,
+                      self.sapInstanceNr,
+                      None,
+                      None)]
+        else:
+            self.tracer.info("%s fetching last known host config", self.logTag)
+            currentHostConfig = self.state['hostConfig']
+            hosts = [(hostConfig['hostname'], 
+                      hostConfig['instanceNr'], 
+                      "https" if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else "http", 
+                      hostConfig['httpsPort'] if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else hostConfig['httpPort']) for hostConfig in currentHostConfig]
+
+        return hosts
 
     """
     returns flag to indicate whether provider checks should attempt to use RFC SDK client calls to fetch certain metrics.
@@ -347,10 +543,9 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 not self.sapPassword or
                 not self.sapClientId or
                 not self.sapRfcSdkBlobUrl):
-                self.tracer.info("Netweaver RFC calls disabled for %s|%s because missing one or more required " +
+                self.tracer.info("%s Netweaver RFC calls disabled for because missing one or more required " +
                                  "config properties: sapUsername, sapPassword, sapClientId, and sapRfcSdkBlobUrl",
-                                 self.sapSid, 
-                                 self.sapHostName)
+                                 self.logTag)
                 self._areRfcCallsEnabled = False
                 return False
 
@@ -363,10 +558,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return self._areRfcCallsEnabled
 
         except Exception as e:
-            self.tracer.error("Exception trying to check if rfc sdk metrics are enabled for %s|%s, %s",
-                              self.sapSid, 
-                              self.sapHostName,
-                              e)
+            self.tracer.error("%s Exception trying to check if rfc sdk metrics are enabled, %s", self.logTag, e)
             sapNetweaverProviderInstance._isRfcInstalled = False
             self._areRfcCallsEnabled = False
 
@@ -393,15 +585,15 @@ class sapNetweaverProviderInstance(ProviderInstance):
         try:
             # if no RFC SDK download blob url specified, treat as kill switch to disable any RFC calls
             if (not self.sapRfcSdkBlobUrl):
-                self.tracer.info("No user provided RFC SDK blob url, will not leverage RFC SDK. quitting...")
+                self.tracer.info("%s No user provided RFC SDK blob url, will not leverage RFC SDK. quitting...", self.logTag)
                 return False
 
             installer = SapRfcSdkInstaller(tracer=self.tracer, installPath=PATH_RFC_SDK_INSTALL)
 
             # environment variables must be initialized before RFC and pyrfc installation can be validated
-            self.tracer.info("initializing RFC SDK environment...")
+            self.tracer.info("%s initializing RFC SDK environment...", self.logTag)
             if (not installer.initRfcSdkEnvironment()):
-                self.tracer.error("failed to initialize rfc sdk environment pre-requisites")
+                self.tracer.error("%s failed to initialize rfc sdk environment pre-requisites", self.logTag)
                 return False
 
             # if we are able to successfully import the pyrfc connector module, that means RFC SDK
@@ -409,26 +601,27 @@ class sapNetweaverProviderInstance(ProviderInstance):
             # so no need to do any further checks.
             if (installer.isPyrfcModuleUsable()):
                 # pyrfc package is usable, which means RFC SDK is already installed and environment configured correctly
-                self.tracer.info("Pyrfc module is usable, RFC calls will be enabled")
+                self.tracer.info("%s Pyrfc module is usable, RFC calls will be enabled", self.logTag)
                 return True
 
             # if pyrfc module cannot be imported, check to see if it is even installed.  Assumption is that
             # pyrfc module is installed as part of container image, so if it is missing something is wrong
             # there is no need to even try to install the RFC SDK
             if (not installer.isPyrfcModuleInstalled()):
-                self.tracer.error("Pyrfc module is not installed, RFC calls will be disabled")
+                self.tracer.error("%s Pyrfc module is not installed, RFC calls will be disabled", self.logTag)
                 return False
 
             # check last sdk install attempt time so we can limit how often we retry
             # to download and install SDK on persistent failures (eg. no more than once every 30 mins)
             lastSdkInstallAttemptTime = installer.getLastSdkInstallAttemptTime()
             if (lastSdkInstallAttemptTime > (datetime.now(timezone.utc) - MINIMUM_RFC_INSTALL_RETRY_INTERVAL)):
-                self.tracer.info("last RFC SDK install attempt was %s, minimum attempt retry %s, skipping...",
+                self.tracer.info("%s last RFC SDK install attempt was %s, minimum attempt retry %s, skipping...",
+                                 self.logTag,
                                  lastSdkInstallAttemptTime, 
                                  MINIMUM_RFC_INSTALL_RETRY_INTERVAL)
                 return False
 
-            self.tracer.info("RFC SDK is not installed, so attempt installation now...")
+            self.tracer.info("%s RFC SDK is not installed, so attempt installation now...", self.logTag)
             blobStorageAccount = AzureStorageAccount(tracer=self.tracer,
                                                      sapmonId=self.ctx.sapmonId,
                                                      msiClientId=self.ctx.msiClientId,
@@ -442,11 +635,11 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 storageAccount=blobStorageAccount)
 
             if (not doesPackageExist):
-                self.tracer.error("User provided RFC SDK blob does not exist %s, skipping...", self.sapRfcSdkBlobUrl)
+                self.tracer.error("%s User provided RFC SDK blob does not exist %s, skipping...", self.logTag, self.sapRfcSdkBlobUrl)
                 return False
             
-            self.tracer.info("user provided RFC SDK blob exists for download %s, lastModified=%s",
-                        self.sapRfcSdkBlobUrl, packageLastModifiedTime)
+            self.tracer.info("%s user provided RFC SDK blob exists for download %s, lastModified=%s",
+                             self.logTag, self.sapRfcSdkBlobUrl, packageLastModifiedTime)
             
             # the user provided sdk blob exists, so before we download compare the last_modified timestamp
             # with the last modified time of the last download attempt.  If nothing has changed, 
@@ -456,35 +649,38 @@ class sapNetweaverProviderInstance(ProviderInstance):
             lastInstallPackageModifiedTime = installer.getLastSdkInstallPackageModifiedTime()
 
             if (packageLastModifiedTime == lastInstallPackageModifiedTime):
-                self.tracer.info("rfc sdk download package has not been modified since last download " +
+                self.tracer.info("%s rfc sdk download package has not been modified since last download " +
                                  "attempt (last_modified=%s), will not download again",
+                                 self.logTag, 
                                  lastInstallPackageModifiedTime)
                 return False
             
-            self.tracer.info("user provided rfc sdk package last_modified (%s) has changed " + 
+            self.tracer.info("%s user provided rfc sdk package last_modified (%s) has changed " + 
                              "since last install attempt (%s), attempting to re-download and install",
+                             self.logTag,
                              packageLastModifiedTime,
                              lastInstallPackageModifiedTime)
 
             # try to download user provided RFC SDK blob, install to local system and configure necessary
             # environment variables and system settings so that it can be usable by pyrfc module
             if (not installer.downloadAndInstallRfcSdk(blobUrl=self.sapRfcSdkBlobUrl, storageAccount=blobStorageAccount)):
-                self.tracer.error("failed to download and install rfc sdk package, RFC calls will not be enabled...")
+                self.tracer.error("%s failed to download and install rfc sdk package, RFC calls will not be enabled...", self.logTag)
                 return False
 
             # on Linux pyrfc module may not be usable upon first install attempt, as it appears that unpacking
             # libraries to the LD_LIBRARY_PATH env variable after the python process starts may not pick up the change.
             # The module should be usable on the next sapmon process run.
             if (not installer.isPyrfcModuleUsable()):
-                self.tracer.error("pyrfc module still not usable after RFC SDK install (might require process restart), " + 
-                                  "RFC calls will not be enabled...")
+                self.tracer.error("%s pyrfc module still not usable after RFC SDK install (might require process restart), " + 
+                                  "RFC calls will not be enabled...", 
+                                  self.logTag)
                 return False
 
-            self.tracer.info("pyrfc module is usable after RFC SDK install, RFC calls will be enabled...")
+            self.tracer.info("%s pyrfc module is usable after RFC SDK install, RFC calls will be enabled...", self.logTag)
             return True
 
         except Exception as e:
-            self.tracer.error("exception trying to setup and validate RFC SDK, RFC calls will be disabled: %s", e)
+            self.tracer.error("%s exception trying to setup and validate RFC SDK, RFC calls will be disabled: %s", self.logTag, e)
 
         return False
 
@@ -501,27 +697,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
         self.lastRunLocal = None
         self.lastRunServer = None
 
+        # provider check common logging prefix
+        self.logTag = "[%s][%s]" % (self.fullName, self.providerInstance.sapSid)
+
     def _getFormattedTimestamp(self) -> str:
         return datetime.utcnow().isoformat()
-
-    def _getHosts(self) -> list:
-        # Fetch last known list from storage. If storage does not have list, use provided
-        # hostname and instanceNr
-        if 'hostConfig' not in self.providerInstance.state:
-            self.tracer.info("[%s] no host config persisted yet, using user-provided host name and instance nr" % self.fullName)
-            hosts = [(self.providerInstance.sapHostName,
-                      self.providerInstance.sapInstanceNr,
-                      None,
-                      None)]
-        else:
-            self.tracer.info("[%s] fetching last known host config" % self.fullName)
-            currentHostConfig = self.providerInstance.state['hostConfig']
-            hosts = [(hostConfig['hostname'], 
-                      hostConfig['instanceNr'], 
-                      "https" if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else "http", 
-                      hostConfig['httpsPort'] if (hostConfig['httpsPort'] and hostConfig['httpsPort'] != "0") else hostConfig['httpPort']) for hostConfig in currentHostConfig]
-
-        return hosts
 
     def _parseResult(self, result: object) -> list:
         return [helpers.serialize_object(result, dict)]
@@ -529,78 +709,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
     def _parseResults(self, results: list) -> list:
         return helpers.serialize_object(results, dict)
 
-    """
-    query SAP SOAP API to return list of all instances in the SID, but if caller specifies that cached results are okay
-    and we have cached instance list with the provider instance, then just return the cached results
-    """
-    def _getInstances(self, useCache: bool = True) -> list:
-        self.tracer.info("[%s] getting list of system instances" % self.fullName)
+    def _getServerTimestamp(self) -> datetime:
+        self.tracer.info("%s fetching current timestamp from message server", self.logTag)
 
-        # Use cached list of instances if available since they should not change within a single monitor run;
-        # but if cache is not available or if caller explicitly asks to skip cache then make the SOAP call
-        if ('hostConfig' in self.providerInstance.state and useCache):
-            self.tracer.info("[%s] using cached list of system instances", self.fullName)
-            return self.providerInstance.state['hostConfig']
-
-        startTime = time()
-
-        instanceList = []
-        hosts = self._getHosts()
-
-        # Use last known hosts to fetch the updated list of hosts
-        # Walk through the known hostnames and stop whenever any of them returns the list of all instances
-        isSuccess = False
-        for host in hosts:
-            hostname, instanceNum, httpProtocol, port = host[0], host[1], host[2], host[3]
-
-            try:
-                apiName = 'GetSystemInstanceList'
-
-                # if we have a cached host config with already defined protocol and port, then we can initialize
-                # client directly from that, otherwise we have to instantiate client using ports derived from the instance number
-                # which will try the derived HTTPS port first and then fallback to derived HTTP port
-                if (not httpProtocol or not port):
-                    client = self.providerInstance.getDefaultClient(hostname=hostname, instance=instanceNum)
-                else:
-                    client = self.providerInstance.getClient(hostname, httpProtocol, port)
-
-                result = self.providerInstance.callSoapApi(client, apiName)
-                instanceList = self._parseResults(result)
-                isSuccess = True
-                break
-            except Exception as e:
-                self.tracer.error("[%s] could not connect to SAP with hostname: %s and port: %s" % (self.fullName, hostname, port))
-
-        if not isSuccess:
-            raise Exception("[%s] could not connect to any SAP instances for provider: %s with hosts %s [%d ms]" % \
-                (self.fullName, self.providerInstance.fullName, hosts, TimeUtils.getElapsedMilliseconds(startTime)))
-
-        self.tracer.info("[%s] finished getting all system instances [%d ms]" % \
-                         (self.fullName, TimeUtils.getElapsedMilliseconds(startTime)))
-
-        return instanceList
-
-    def _filterInstances(self, sapInstances: list, filterFeatures: list, filterType: str) -> list:
-        self.tracer.info("[%s] filtering list of system instances based on features: %s" % (self.fullName, filterFeatures))
-
-        instances = [(instance, instance['features'].split('|')) for instance in sapInstances]
-
-        # Inclusion filter
-        # Only keep instance if the instance supports at least 1 of the filter features
-        if filterType == "include":
-            filtered_instances = [instance for (instance, instance_features) in instances \
-                if not set(filterFeatures).isdisjoint(set(instance_features))]
-        else:
-        # Exclusion filter
-        # Only keep instance if the instance does not support any of the filter features
-            filtered_instances = [instance for (instance, instance_features) in instances \
-                if set(filterFeatures).isdisjoint(set(instance_features))]
-
-        return filtered_instances
-
-    def _getServerTimestamp(self, instances: list) -> datetime:
-        self.tracer.info("[%s] fetching current timestamp from message server" % self.fullName)
-        message_server_instances = self._filterInstances(instances, ['MESSAGESERVER'], 'include')
+        message_server_instances = self.providerInstance.getInstances(filterFeatures=['MESSAGESERVER'], filterType='include', useCache=True)
         date = datetime.fromisoformat(self._getFormattedTimestamp())
 
         # Get timestamp from the first message server that returns a valid date
@@ -624,28 +736,27 @@ class sapNetweaverProviderCheck(ProviderCheck):
                                     % (response.status_code, response.reason, message_server_endpoint))
 
                 date = datetime.strptime(response.headers['date'], '%a, %d %b %Y %H:%M:%S %Z')
-                self.tracer.info("[%s] received message server %s header: %s, parsed time: %s",
-                                 self.fullName, 
+                self.tracer.info("%s received message server %s header: %s, parsed time: %s",
+                                 self.logTag, 
                                  message_server_endpoint, 
                                  response.headers['date'],
                                  date)
                 break
             except Exception as e:
-                self.tracer.info("[%s] suppressing expected error while fetching server time during HTTP GET request to url %s: %s " % (self.fullName, message_server_endpoint, e))
+                self.tracer.info("%s suppressing expected error while fetching server time during HTTP GET request to url %s: %s ",
+                                 self.logTag, message_server_endpoint, e)
         return date
 
     def _actionGetSystemInstanceList(self) -> None:
-        self.tracer.info("[%s] refreshing list of system instances" % self.fullName)
+        self.tracer.info("%s refreshing list of system instances", self.logTag)
         self.lastRunLocal = datetime.utcnow()
         # when performing the actual provider check action, always fetch fressh instance list snapshot and refresh the cache
-        instanceList = self._getInstances(useCache=False)
-        self.lastRunServer = self._getServerTimestamp(instanceList)
+        instanceList = self.providerInstance.getInstances(useCache=False)
+        self.lastRunServer = self._getServerTimestamp()
 
         # Update host config, if new list is fetched
         # Parse dictionary and add current timestamp and SID to data and log it
         if len(instanceList) != 0:
-            # update instances cache with fresh instanceList
-            self.providerInstance.state['hostConfig'] = instanceList
             currentTimestamp = self._getFormattedTimestamp()
             for instance in instanceList:
                 instance['timestamp'] = currentTimestamp
@@ -657,9 +768,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         # Update internal state
         if not self.updateState():
-            raise Exception("[%s] failed to update state" % self.fullName)
+            raise Exception("%s failed to update state" % self.logTag)
 
-        self.tracer.info("[%s] successfully fetched system instance list" % self.fullName)
+        self.tracer.info("%s successfully fetched system instance list", self.logTag)
 
     def _executeWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str, parser: Callable[[Any], list] = None) -> None:
         self.tracer.info("[%s] executing web service request: %s" % (self.fullName, apiName))
@@ -671,15 +782,14 @@ class sapNetweaverProviderCheck(ProviderCheck):
         if parser is None:
             parser = self._parseResults
 
-        # Use cached list of instances if available since they don't change that frequently; else fetch afresh
-        sapInstances = self._getInstances(useCache=True)
+        # Use cached list of instances if available since they don't change that frequently; else fetch afresh.
+        # filter down to just the instances we need for this SOAP API type
+        sapInstances = self.providerInstance.getInstances(useCache=True, filterFeatures=filterFeatures, filterType=filterType)
 
-        self.lastRunServer = self._getServerTimestamp(sapInstances)
+        self.lastRunServer = self._getServerTimestamp()
 
-        # Filter instances down to the ones that support this API
-        sapInstances = self._filterInstances(sapInstances, filterFeatures, filterType)
         if len(sapInstances) == 0:
-            self.tracer.info("[%s] no instances found that support this API: %s" % (self.fullName, apiName))
+            self.tracer.info("%s no instances found that support this API: %s", self.logTag, apiName)
 
         # Call web service
         all_results = []
@@ -698,7 +808,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
                 results = self.providerInstance.callSoapApi(client, apiName)
             except Exception as e:
-                self.tracer.error("[%s] unable to call the Soap Api %s - %s://%s:%s, %s", self.fullName, apiName, httpProtocol, instance['hostname'], port, e)
+                self.tracer.error("%s unable to call the Soap Api %s - %s://%s:%s, %s", self.logTag, apiName, httpProtocol, instance['hostname'], port, e)
                 continue
 
             if len(results) != 0:
@@ -713,40 +823,22 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 all_results.extend(parsed_results)
 
         if len(all_results) == 0:
-            self.tracer.info("[%s] no results found for: %s" % (self.fullName, apiName))
+            self.tracer.info("%s no results found for: %s", self.logTag, apiName)
         self.lastResult = all_results
 
         # Update internal state
         if not self.updateState():
             raise Exception("[%s] failed to update state for web service request: %s [%d ms]" % \
-                            (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
+                            (self.logTag, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
 
-        self.tracer.info("[%s] successfully processed web service request: %s [%d ms]" % \
-                         (self.fullName, apiName, TimeUtils.getElapsedMilliseconds(startTime)))
+        self.tracer.info("%s successfully processed web service request: %s [%d ms]",
+                         self.logTag, apiName, TimeUtils.getElapsedMilliseconds(startTime))
 
     def _actionExecuteGenericWebServiceRequest(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResults)
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResult)
-
-    """
-    fetch cached instance list for this provider and filter down to the list 'ABAP' feature functions
-    that are healthy (ie. have dispstatus attribute of 'SAPControl-GREEN').  Just return first in the list.
-    """
-    def _getActiveDispatcherInstance(self):
-        # Use cached list of instances if available since they don't change that frequently,
-        # and filter down to only healthy dispatcher instances since RFC direct application server connection
-        # only works against dispatchera
-        instances = self._getInstances(useCache=True)
-        dispatcherInstances = self._filterInstances(instances, ['ABAP'], 'include')
-        healthyInstances = [instance for instance in dispatcherInstances if 'GREEN' in instance['dispstatus']]
-
-        if (len(healthyInstances) == 0):
-            raise Exception("No healthy ABAP/dispatcher instance found for %s" % self.providerInstance.sapSid)
-
-        # return first healthy instance in list
-        return healthyInstances[0]
 
     """
     netweaver provider check action to query for SDF/SMON Analysis Run metrics
@@ -758,35 +850,25 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapHostnameStr = self.providerInstance.sapSid
 
             if (not self.providerInstance.areRfcMetricsEnabled()):
-                self.tracer.info("[%s] Skipping SMON metrics for %s because RFC SDK metrics not enabled...", 
-                                 self.fullName, self.providerInstance.sapSid)
+                self.tracer.info("%s Skipping SMON metrics because RFC SDK metrics not enabled...", self.logTag)
                 return
+
+            # track latency of entire method excecution with dependencies
+            latencyStartTime = time()
             
-            # RFC connections against direct application server instances can only be made to 'ABAP' instances
-            dispatcherInstance = self._getActiveDispatcherInstance()
+            # initialize a client for the first healthy ABAP/Dispatcher instance we find
+            client = self.providerInstance.getRfcClient(logTag=self.logTag)
 
-            # create simple SAP host|SID|instance string for consistent logging calls below
-            sapHostnameStr = "%s|%s|%s" % (dispatcherInstance['hostname'],
-                                           self.providerInstance.sapSid,
-                                           dispatcherInstance['instanceNr'])
-
-            self.tracer.info("attempting to fetch SMON metrics from %s", sapHostnameStr)
-            client = MetricClientFactory.getMetricClient(tracer=self.tracer, 
-                                                        logTag=self.fullName,
-                                                        sapHostName=dispatcherInstance['hostname'],
-                                                        sapSysNr=str(dispatcherInstance['instanceNr']),
-                                                        sapSubdomain=self.providerInstance.sapSubdomain,
-                                                        sapSid=self.providerInstance.sapSid,
-                                                        sapClient=self.providerInstance.sapClientId,
-                                                        sapUsername=self.providerInstance.sapUsername,
-                                                        sapPassword=self.providerInstance.sapPassword)
+            # update logging prefix with the specific instance details of the client
+            sapHostnameStr = "%s|%s" % (client.Hostname, client.InstanceNr)
             
             # get metric query window based on our last successful query where results were returned
             (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
                                                          minimumRunIntervalSecs=self.frequencySecs)
             result = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
 
-            self.tracer.info("[%s] successfully queried SMON metrics for %s", self.fullName, sapHostnameStr)
+            self.tracer.info("%s successfully queried SMON metrics for %s [%d ms]", 
+                             self.logTag, sapHostnameStr, TimeUtils.getElapsedMilliseconds(latencyStartTime))
             self.lastRunLocal = datetime.now(timezone.utc)
             self.lastRunServer = endTime
 
@@ -794,9 +876,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
             self.updateState()
 
         except Exception as e:
-            self.tracer.error("[%s] exception trying to fetch SMON Analysis Run metrics for %s, error: %s", 
-                              self.fullName, 
+            self.tracer.error("%s exception trying to fetch SMON Analysis Run metrics for %s [%d ms], error: %s", 
+                              self.logTag, 
                               sapHostnameStr,
+                              TimeUtils.getElapsedMilliseconds(latencyStartTime),
                               e)
             raise
         finally:
@@ -814,28 +897,17 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapHostnameStr = self.providerInstance.sapSid
 
             if (not self.providerInstance.areRfcMetricsEnabled()):
-                self.tracer.info("[%s] Skipping SWNC metrics for %s because RFC SDK metrics not enabled...",
-                                 self.fullName, self.providerInstance.sapSid)
+                self.tracer.info("%s Skipping SWNC metrics because RFC SDK metrics not enabled...", self.logTag)
                 return
 
-            # RFC connections against direct application server instances can only be made to 'ABAP' instances
-            dispatcherInstance = self._getActiveDispatcherInstance()
+            # track latency of entire method excecution with dependencies
+            latencyStartTime = time()
 
-            # create simple SAP host|SID|instance string for consistent logging calls below
-            sapHostnameStr = "%s|%s|%s" % (dispatcherInstance['hostname'],
-                                           self.providerInstance.sapSid,
-                                           dispatcherInstance['instanceNr'])
+            # initialize a client for the first healthy ABAP/Dispatcher instance we find
+            client = self.providerInstance.getRfcClient(logTag=self.logTag)
 
-            self.tracer.info("attempting to fetch SWNC workload metrics from %s", sapHostnameStr)
-            client = MetricClientFactory.getMetricClient(tracer=self.tracer, 
-                                                        logTag=self.fullName,
-                                                        sapHostName=dispatcherInstance['hostname'],
-                                                        sapSysNr=str(dispatcherInstance['instanceNr']),
-                                                        sapSubdomain=self.providerInstance.sapSubdomain,
-                                                        sapSid=self.providerInstance.sapSid,
-                                                        sapClient=self.providerInstance.sapClientId,
-                                                        sapUsername=self.providerInstance.sapUsername,
-                                                        sapPassword=self.providerInstance.sapPassword)
+            # update logging prefix with the specific instance details of the client
+            sapHostnameStr = "%s|%s" % (client.Hostname, client.InstanceNr)
             
             # get metric query window based on our last successful query where results were returned
             (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
@@ -843,7 +915,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
             result = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
 
-            self.tracer.info("[%s] successfully queried SWNC workload metrics for %s", self.fullName, sapHostnameStr)
+            self.tracer.info("%s successfully queried SWNC workload metrics for %s [%d ms]", 
+                             self.logTag, sapHostnameStr, TimeUtils.getElapsedMilliseconds(latencyStartTime))
             self.lastRunLocal = datetime.now(timezone.utc)
             self.lastRunServer = endTime
 
@@ -851,9 +924,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
             self.updateState()
 
         except Exception as e:
-            self.tracer.error("[%s] exception trying to fetch SWNC workload metrics for %s, error: %s",
-                              self.fullName, 
+            self.tracer.error("%s exception trying to fetch SWNC workload metrics for %s [%d ms], error: %s",
+                              self.logTag, 
                               sapHostnameStr,
+                              TimeUtils.getElapsedMilliseconds(latencyStartTime),
                               e)
             raise
         finally:
@@ -863,17 +937,17 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
 
     def generateJsonString(self) -> str:
-        self.tracer.info("[%s] converting result to json string" % self.fullName)
+        self.tracer.info("%s converting result to json string", self.logTag)
         if self.lastResult is not None and len(self.lastResult) != 0:
             for result in self.lastResult:
                 result['SAPMON_VERSION'] = PAYLOAD_VERSION
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
-        self.tracer.debug("[%s] resultJson=%s" % (self.fullName, str(resultJsonString)))
+        self.tracer.debug("%s resultJson=%s", self.logTag, str(resultJsonString))
         return resultJsonString
 
     def updateState(self) -> bool:
-        self.tracer.info("[%s] updating internal state" % self.fullName)
+        self.tracer.info("%s updating internal state", self.logTag)
         self.state['lastRunLocal'] = self.lastRunLocal
         self.state['lastRunServer'] = self.lastRunServer
-        self.tracer.info("[%s] internal state successfully updated" % self.fullName)
+        self.tracer.info("%s internal state successfully updated", self.logTag)
         return True

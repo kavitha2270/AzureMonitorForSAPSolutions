@@ -150,6 +150,8 @@ class SapRfcSdkInstaller:
 
         if (os.name != "nt"):
             if (not self._isLinuxHostnameInHostsFile()):
+                # NOTE: uncomment code below to enable runtime updating of hsots file
+                #return False
                 if (not self._setLinuxHostnameInHostsFile()):
                     return False
 

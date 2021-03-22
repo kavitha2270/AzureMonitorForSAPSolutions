@@ -1,5 +1,5 @@
 # Python modules
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from datetime import date, datetime, timedelta
 import logging
 from typing import Callable, Dict, List, Optional
@@ -8,12 +8,21 @@ from typing import Callable, Dict, List, Optional
 # Abstract base class to represent interface for SAP NetWeaver SMON and SWNC Workload metric extraction client implementations
 ##########
 class NetWeaverMetricClient(ABC):
+    #__metaclass__ = ABCMeta
 
     def __init__(self, 
                  tracer: logging.Logger,
                  logTag: str):
         self.tracer = tracer
         self.logTag = logTag
+
+    @abstractproperty
+    def Hostname(self) -> str:
+        pass
+
+    @abstractproperty
+    def InstanceNr(self) -> str:
+        pass
     
     # validate that config settings and that client can establish connection
     @abstractmethod
