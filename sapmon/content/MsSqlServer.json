@@ -35,7 +35,7 @@
 			"description": "Databasefiles",
 			"customLog": "MSSQL_FileOverview",
 			"frequencySecs": 3600,
-			"includeInCustomerAnalytics": true,
+			"includeInCustomerAnalytics": false,
 			"actions": [
 				{
 					"type": "ExecuteSql",
@@ -65,7 +65,7 @@
 			"description": "Top 10 expensive statements",
 			"customLog": "MSSQL_Top10Statements",
 			"frequencySecs": 300,
-			"includeInCustomerAnalytics": true,
+			"includeInCustomerAnalytics": false,
 			"actions": [
 				{
 					"type": "ExecuteSql",
@@ -80,7 +80,7 @@
 			"description": "Average IO Performance",
 			"customLog": "MSSQL_IOPerformance",
 			"frequencySecs": 60,
-			"includeInCustomerAnalytics": true,
+			"includeInCustomerAnalytics": false,
 			"actions": [
 				{
 					"type": "ExecuteSql",
@@ -95,7 +95,7 @@
 			"description": "TOP 100 Table Size",
 			"customLog": "MSSQL_TableSizes",
 			"frequencySecs": 3600,
-			"includeInCustomerAnalytics": true,
+			"includeInCustomerAnalytics": false,
 			"actions": [
 				{
 					"type": "ExecuteSql",
