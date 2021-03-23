@@ -354,11 +354,11 @@ class sapNetweaverProviderInstance(ProviderInstance):
             # customer specified only partial set of config properties needed to enable RFC, so fail validation
             raise Exception("must specify all properties to enable RFC metric collection:  Username, Password, ClientId, and RfcSdkBlobUrl")
 
-        if (not self._areRfcMetricsEnabled()):
+        if (not self.areRfcMetricsEnabled()):
             raise Exception("RFC SDK failed to install and is not usable")
 
         # initialize a client for the first healthy ABAP/Dispatcher instance we find
-        client = self.providerInstance.getRfcClient(logTag=logTag)
+        client = self.getRfcClient(logTag=logTag)
 
         # update logging prefix with the specific instance details of the client
         sapHostnameStr = "%s|%s" % (client.Hostname, client.InstanceNr)
