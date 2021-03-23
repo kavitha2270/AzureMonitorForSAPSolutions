@@ -148,12 +148,15 @@ class SapRfcSdkInstaller:
         # set SAPNWRFC_HOME environment variable and os-specific library load path variables
         self._setEnvironmentVariables()
 
-        if (os.name != "nt"):
-            if (not self._isLinuxHostnameInHostsFile()):
-                # NOTE: uncomment code below to enable runtime updating of hsots file
-                #return False
-                if (not self._setLinuxHostnameInHostsFile()):
-                    return False
+        # NOTE:  we have observed on some express-route subscription setups that the collector VM
+        #        is unable to resolve its own hostname to an ip address, which causes RFC SDK calls
+        #        to fail because the protocol evidently requires resolving the client host IP.
+        #        When running in dev machine setup (as sudo) or in container (as root), uncomment
+        #        the code below if RFC calls are failing due to being unable to resolve the collector VM name
+        #if (os.name != "nt"):
+        #    if (not self._isLinuxHostnameInHostsFile()):
+        #        if (not self._setLinuxHostnameInHostsFile()):
+        #            return False
 
         self.tracer.info("rfc sdk environment configured successfully")
         return True
@@ -228,9 +231,13 @@ class SapRfcSdkInstaller:
         if (not self._areEnvironmentVariablesSet()):
             return False
 
-        if (os.name != "nt"):
-            if (not self._isLinuxHostnameInHostsFile()):
-                return False
+        # NOTE: making the decision to not do hosts file check here since it is unclear whether 
+        #       the express route scenario is common enough among SAP customers.  What we really
+        #       want to do is a socket.gethostbyname(hostname) resolution attempt but this has a very long
+        #       timmeout on failure so we need some additional state to ensure this check is not performed too often
+        #if (os.name != "nt"):
+        #    if (not self._isLinuxHostnameInHostsFile()):
+        #        return False
         
         self.tracer.info("validated SAP RFC SDK is installed at path:%s", self.installPath)
         return True
