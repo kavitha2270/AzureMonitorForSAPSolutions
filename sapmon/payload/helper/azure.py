@@ -233,7 +233,6 @@ class AzureStorageAccount():
     resourceGroup = None
     subscriptionId = None
     token = {}
-    accountKey = None
     tracer = None
 
     # Retrieve the name of the storage account
@@ -242,17 +241,12 @@ class AzureStorageAccount():
                  sapmonId: str,
                  msiClientId: str,
                  subscriptionId: str,
-                 resourceGroup: str,
-                 accountKey: str = None):
+                 resourceGroup: str):
         self.tracer = tracer
         self.tracer.info("initializing Storage Account instance")
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
 
-        # if initialized directly with account key, we can skip on Managed Service Identity credentials
-        if (accountKey is None):
-            self.token = ManagedIdentityCredential(client_id = msiClientId)
-        else:
-            self.accountKey = accountKey
+        self.token = ManagedIdentityCredential(client_id = msiClientId)
         
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
@@ -260,10 +254,6 @@ class AzureStorageAccount():
     # Get the access key to the storage account
     def getAccessKey(self) -> str:
         self.tracer.info("getting access key for Storage Account")
-
-        if (self.accountKey is not None):
-            # if account key was provided then no need to use storage client
-            return self.accountKey
 
         storageclient = StorageManagementClient(credential = self.token,
                                                 subscription_id = self.subscriptionId)
