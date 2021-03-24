@@ -39,7 +39,7 @@ class JsonFormatter(logging.Formatter):
                     record: logging.LogRecord) -> OrderedDict():
       
       # the logging.Logger APIs take a (msg, *args) with expectation that msg can be a string format
-      # and args escaping will be done by logging API.  For this customer JSON formatter, need to 
+      # and args escaping will be done by logging API.  For this custom JSON formatter, need to 
       # ensure the string formatting is done on the message before we return transformed JSON.
       formattedMsg = record.msg
       if (len(record.args) > 0):

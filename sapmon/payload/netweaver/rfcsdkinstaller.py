@@ -265,19 +265,16 @@ class SapRfcSdkInstaller:
                                      blobUrl: str, 
                                      storageAccount: AzureStorageAccount) -> tuple:
         try:
-            #blobClient = BlobClient.from_blob_url(blob_url=blobUrl, credential=storageAccount.getAccessKey())
             blobService = BlockBlobService(account_name=storageAccount.accountName, 
                                            account_key=storageAccount.getAccessKey())
 
             (accountName, containerName, blobName) = self._getBlobContainerAndName(blobUrl)
 
-            #if (not blobClient.exists()):
             if (not blobService.exists(container_name=containerName, blob_name=blobName)):
                 # rfc sdk blob does not exist so we have no last modified time
                 self.tracer.error("error validating rfc sdk blob: blob does not exist at url:%s", blobUrl)
                 return (False, datetime.min)
         
-            #metadata = blobClient.get_blob_properties()
             metadata = blobService.get_blob_properties(container_name=containerName, blob_name=blobName)
             lastModifiedTime = metadata.properties.last_modified
 
@@ -311,20 +308,17 @@ class SapRfcSdkInstaller:
             # create download folder
             self._createSdkInstallPathIfNotExists()
 
-            #blobClient = BlobClient.from_blob_url(blob_url=blobUrl, credential=storageAccount.getAccessKey())
             blobService = BlockBlobService(account_name=storageAccount.accountName, 
                                            account_key=storageAccount.getAccessKey())
 
             (accountName, containerName, blobName) = self._getBlobContainerAndName(blobUrl)
 
-            #if (not blobClient.exists()):
             if (not blobService.exists(container_name=containerName, blob_name=blobName)):
                 raise Exception("rfc sdk blob does noty exist! url:%s" % blobUrl)
 
             # extract metadata properties from blob so that we can attempt to download
             # to local file with same name as the blob itself, and also persist
             # the last modified time of the blob itself
-            #metadata = blobClient.get_blob_properties()
             metadata = blobService.get_blob_properties(container_name=containerName, blob_name=blobName)
             lastModifiedTime = metadata.properties.last_modified
             downloadFilePath = os.path.join(self.installPath, blobName)
@@ -383,16 +377,11 @@ class SapRfcSdkInstaller:
     download binary blob to the local install path and then unpack it to that folder
     """
     def _downloadAndUnzip(self,
-                          #blobClient: BlobClient,
                           blobService: BlockBlobService,
                           containerName: str,
                           blobName: str,
                           downloadFilePath: str):
         try:
-            #with open(downloadFilePath, "wb+") as downloadFile:
-            #    downloadStream = blobClient.download_blob()
-            #    downloadFile.write(downloadStream.readall())
-        
             # first download the sdk blob file to local install path
             self.tracer.info("starting download of rfc sdk blob: %s to path: %s", 
                              ("%s/%s" % (containerName, blobName)),

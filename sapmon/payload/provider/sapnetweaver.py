@@ -846,7 +846,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
     netweaver provider check action to query for SDF/SMON Analysis Run metrics
     """
     def _actionGetSmonAnalysisMetrics(self) -> None:
-        result = []
+        # base class will always call generateJsonString(), so we must always be sure to set the lastResult
+        # regardless of success or failure
+        self.lastResult = []
+
         try:
             # initialize hostname log string here to default of SID in case we cannot identify a specific dispatcher host
             sapHostnameStr = self.providerInstance.sapSid
@@ -867,7 +870,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             # get metric query window based on our last successful query where results were returned
             (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
                                                          minimumRunIntervalSecs=self.frequencySecs)
-            result = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
+            self.lastResult = client.getSmonMetrics(startDateTime=startTime, endDateTime=endTime)
 
             self.tracer.info("%s successfully queried SMON metrics for %s [%d ms]", 
                              self.logTag, sapHostnameStr, TimeUtils.getElapsedMilliseconds(latencyStartTime))
@@ -884,16 +887,15 @@ class sapNetweaverProviderCheck(ProviderCheck):
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
                               e)
             raise
-        finally:
-            # base class will always call generateJsonString(), so we must always be sure to set the lastResult
-            # regardless of success or failure
-            self.lastResult = result
     
     """
     netweaver provider check action to query for SWNC workload statistics and decorate with ST03 metric calculations
     """
     def _actionGetSwncWorkloadMetrics(self) -> None:
-        result = []
+        # base class will always call generateJsonString(), so we must always be sure to set the lastResult
+        # regardless of success or failure
+        self.lastResult = []
+
         try:
             # initialize hostname log string here to default of SID in case we cannot identify a specific dispatcher host
             sapHostnameStr = self.providerInstance.sapSid
@@ -915,7 +917,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             (startTime, endTime) = client.getQueryWindow(lastRunServerTime=self.lastRunServer, 
                                                          minimumRunIntervalSecs=self.frequencySecs)
 
-            result = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
+            self.lastResult = client.getSwncWorkloadMetrics(startDateTime=startTime, endDateTime=endTime)
 
             self.tracer.info("%s successfully queried SWNC workload metrics for %s [%d ms]", 
                              self.logTag, sapHostnameStr, TimeUtils.getElapsedMilliseconds(latencyStartTime))
@@ -932,11 +934,6 @@ class sapNetweaverProviderCheck(ProviderCheck):
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
                               e)
             raise
-        finally:
-            # base class will always call generateJsonString(), so we must always be sure to set the lastResult
-            # regardless of success or failure
-            self.lastResult = result
-
 
     def generateJsonString(self) -> str:
         self.tracer.info("%s converting result to json string", self.logTag)
