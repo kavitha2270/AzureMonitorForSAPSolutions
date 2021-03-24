@@ -78,13 +78,18 @@ class sapNetweaverProviderInstance(ProviderInstance):
                        skipContent,
                        **kwargs)
 
-        # provider level common logging prefix
-        self.logTag = "[%s][%s]" % (self.fullName, self.sapSid)
-
     """
     parse provider properties and get sid, host name and instance number
     """
     def parseProperties(self) -> bool:
+        self.sapSid = self.metadata.get("sapSid", "")
+        if not self.sapSid:
+            self.tracer.error("%s sapSid cannot be empty", self.fullName)
+            return False
+
+        # provider level common logging prefix
+        self.logTag = "[%s][%s]" % (self.fullName, self.sapSid)
+
         self.sapHostName = self.providerProperties.get("sapHostName", None)
         if not self.sapHostName:
             self.tracer.error("%s sapHostName cannot be empty", self.logTag)
@@ -99,10 +104,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return False
         self.sapInstanceNr = str(instanceNr).zfill(2)
         self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
-        self.sapSid = self.metadata.get("sapSid", "")
-        if not self.sapSid:
-            self.tracer.error("%s sapSid cannot be empty", self.logTag)
-            return False
+
 
         self.sapUsername = self.providerProperties.get('sapUsername', None)
         self.sapPassword = self.providerProperties.get('sapPassword', None)
