@@ -65,6 +65,10 @@ class sapNetweaverProviderInstance(ProviderInstance):
         # cache WSDL SOAP clients so we can re-use them across checks for the same provider and cut down off-box calls
         self._soapClientCache = {}
 
+        # the RFC SDK does not allow client to specify a timeout and in fact appears to have a connection timeout of 60 secs. 
+        # In cases where RFC calls timeout due to some misconfiguration, multiple retries can lead to metric gaps of several minutes.  
+        # We are limiting retries here because it is extremely rare for SOAP or RFC call to fail on first attempt and succeed on retry,
+        # as most of these failures are due to persistent issues.  Better to not waste limited time budget.
         retrySettings = {
             "retries": 1,
             "delayInSeconds": 1,
