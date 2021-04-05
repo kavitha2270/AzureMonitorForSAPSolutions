@@ -109,7 +109,7 @@
         {
             "name": "SDF_Short_Dumps_Metrics",
             "description": "SAP Netweaver Short Dumps",
-            "customLog": "SapNetweaver_Short_Dumps",
+            "customLog": "SapNetweaver_ShortDumps",
             "frequencySecs": 300,
             "includeInCustomerAnalytics": true,
             "actions": [
