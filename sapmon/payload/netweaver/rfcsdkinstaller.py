@@ -342,7 +342,8 @@ class SapRfcSdkInstaller:
                               "installPath: %s, exception: (%s)",
                               blobUrl,
                               self.installPath,
-                              e)
+                              e, 
+                              exc_info=True)
         try:
             # persist installation attempt timestamp and (if available) the last modified
             # time of the downloaded sdk blob so we only update installation in future if it changes
@@ -395,7 +396,7 @@ class SapRfcSdkInstaller:
 
             self.tracer.info("downloaded sdk blob and successfully extracted to: %s", self.installPath)
         except Exception as e:
-            self.tracer.error("failed to download and unzip rfc sdk package to path: %s (%s)", downloadFilePath, e)
+            self.tracer.error("failed to download and unzip rfc sdk package to path: %s (%s)", downloadFilePath, e, exc_info=True)
             raise
 
     """
@@ -538,7 +539,8 @@ COUNTER     2
             self.tracer.error("failed to write current hostname to hosts file %s with mapping: '%s' (%s)", 
                                 LINUX_HOSTS_FILE, 
                                 expectedMapping,
-                                e)
+                                e, 
+                                exc_info=True)
             return False
 
     """
@@ -571,7 +573,8 @@ COUNTER     2
         except Exception as e:
             self.tracer.error("Error writing rfc sdk installation state file: %s (%s", 
                               self.sdkInstallStateFilePath, 
-                              e)
+                              e, 
+                              exc_info=True)
             raise
 
     """
@@ -598,5 +601,6 @@ COUNTER     2
         except Exception as e:
             self.tracer.error("error trying to read rfc sdk installation state file: %s (%s)", 
                               self.sdkInstallStateFilePath,
-                              e)
+                              e, 
+                              exc_info=True)
             raise
