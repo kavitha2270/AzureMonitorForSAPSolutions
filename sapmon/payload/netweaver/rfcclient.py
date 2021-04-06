@@ -276,10 +276,10 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return timestampResult
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.fqdn, e, exc_info=True)
+                              self.logTag, rfcName, self.fqdn, e)
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.fqdn, e, exc_info=True)
+                              self.logTag, rfcName, self.fqdn, e)
 
         return None
 
@@ -346,10 +346,10 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return smon_result
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         return None
 
@@ -407,10 +407,10 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return result
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)", 
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         return None
 
@@ -509,10 +509,10 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return swnc_result
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)", 
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         return None
 
