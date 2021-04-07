@@ -988,7 +988,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
                               self.logTag, 
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e)
+                              e,
+                              exc_info=True)
             raise
     
     def generateJsonString(self) -> str:

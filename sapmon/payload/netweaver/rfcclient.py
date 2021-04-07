@@ -233,13 +233,14 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                        startDateTime: datetime,
                        endDateTime: datetime) -> str:
         self.tracer.info("executing RFC SDF/GET_DUMP_LOG check")
-        
+        parsedResult = None
         with self._getConnection() as connection:
             # get guid to call RFC SDF/GET_DUMP_LOG.
             rawResult = self._rfcGetDumpLog(connection, startDateTime=startDateTime, endDateTime=endDateTime)
-            parsedResult = self._parseGetDumpLogResults(rawResult)
-            #add additional common metric properties
-            self._decorateShortDumpMetrics(parsedResult)
+            if (rawResult != None) :
+                parsedResult = self._parseGetDumpLogResults(rawResult)
+                #add additional common metric properties
+                self._decorateShortDumpMetrics(parsedResult)
             return parsedResult
 
     #####
@@ -657,25 +658,34 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                           startDateTime: datetime,
                           endDateTime: datetime):
         rfcName = '/SDF/GET_DUMP_LOG'
-        self.tracer.info("[%s] invoking rfc %s for hostname=%s with from_date=%s, to_date=%s",
+        self.tracer.info("[%s] invoking rfc %s for hostname=%s with date_from=%s, time_from=%s, date_to=%s, time_to=%s",
                          self.logTag,
                          rfcName,
                          self.sapHostName,
                          startDateTime.date(),
-                         endDateTime.date())
+                         startDateTime.time(),
+                         endDateTime.date(),
+                         endDateTime.time())
         try:
             short_dump_result = connection.call(rfcName,
                                                 DATE_FROM=startDateTime.date(),
                                                 TIME_FROM=startDateTime.time(),
                                                 DATE_TO=endDateTime.date(),
                                                 TIME_TO=endDateTime.time())
+
             return short_dump_result
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e)
+                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+
+        except ABAPApplicationError as e:
+            self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
+                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e)
+                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+
         return None
     
     """
