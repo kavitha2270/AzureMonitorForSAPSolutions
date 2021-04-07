@@ -227,35 +227,34 @@ x-ms-date:%s
 
 ###############################################################################
 
-# Provide access to an Azure Storage Queue (used for payload logging)
-class AzureStorageQueue():
+# Provide access to an Azure Storage Account (used for payload logging)
+class AzureStorageAccount():
     accountName = None
-    name = None
     resourceGroup = None
     subscriptionId = None
     token = {}
     tracer = None
 
-    # Retrieve the name of the storage account and storage queue
+    # Retrieve the name of the storage account
     def __init__(self,
                  tracer: logging.Logger,
                  sapmonId: str,
                  msiClientId: str,
                  subscriptionId: str,
-                 resourceGroup: str,
-                 queueName: str):
+                 resourceGroup: str):
         self.tracer = tracer
-        self.tracer.info("initializing Storage Queue instance")
+        self.tracer.info("initializing Storage Account instance")
         self.accountName = STORAGE_ACCOUNT_NAMING_CONVENTION % sapmonId
-        self.name = queueName
-        
+
         self.token = ManagedIdentityCredential(client_id = msiClientId)
+        
         self.subscriptionId = subscriptionId
         self.resourceGroup = resourceGroup
 
-    # Get the access key to the storage queue
+    # Get the access key to the storage account
     def getAccessKey(self) -> str:
-        self.tracer.info("getting access key for Storage Queue")
+        self.tracer.info("getting access key for Storage Account")
+
         storageclient = StorageManagementClient(credential = self.token,
                                                 subscription_id = self.subscriptionId)
 
@@ -263,6 +262,6 @@ class AzureStorageQueue():
         storageKeys = storageclient.storage_accounts.list_keys(resource_group_name = self.resourceGroup,
                                                                account_name = self.accountName)
         if storageKeys is None or len(storageKeys.keys) == 0 :
-           self.log.error("could not retrieve storage keys of the storage account %s" % self.accountName)
+           self.tracer.error("could not retrieve storage keys of the storage account %s" % self.accountName)
            return None
         return storageKeys.keys[0].value

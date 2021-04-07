@@ -79,6 +79,32 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "SMON_Metrics",
+            "description": "SAP Netweaver SMON",
+            "customLog": "SapNetweaver_SMON",
+            "frequencySecs": 60,
+            "includeInCustomerAnalytics": true,
+            "actions": [
+                {
+                    "type": "GetSmonAnalysisMetrics",
+                    "parameters": { }
+                }
+            ]
+        },
+        {
+            "name": "SWNC_Workload_Metrics",
+            "description": "SAP Netweaver SWNC",
+            "customLog": "SapNetweaver_SWNC",
+            "frequencySecs": 300,
+            "includeInCustomerAnalytics": true,
+            "actions": [
+                {
+                    "type": "GetSwncWorkloadMetrics",
+                    "parameters": { }
+                }
+            ]
         }
     ]
 }

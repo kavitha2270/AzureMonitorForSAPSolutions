@@ -37,17 +37,25 @@ class JsonFormatter(logging.Formatter):
    # Combines any supplied fields with the log record msg field into an object to convert to JSON
    def _getJsonData(self,
                     record: logging.LogRecord) -> OrderedDict():
+      
+      # the logging.Logger APIs take a (msg, *args) with expectation that msg can be a string format
+      # and args escaping will be done by logging API.  For this custom JSON formatter, need to 
+      # ensure the string formatting is done on the message before we return transformed JSON.
+      formattedMsg = record.msg
+      if (len(record.args) > 0):
+         formattedMsg = record.msg % record.args
+
       if len(self.fieldMapping.keys()) > 0:
          # Build a temporary list of tuples with the actual content for each field
          jsonContent = []
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
-         jsonContent.append(("msg", record.msg))
+         jsonContent.append(("msg", formattedMsg))
 
          # An OrderedDict is used to ensure that the converted data appears in the same order for every record
          return OrderedDict(jsonContent)
       else:
-         return record.msg
+         return formattedMsg
 
    # Overridden from the parent class to take a log record and output a JSON-formatted string
    def format(self,
@@ -126,24 +134,24 @@ class tracing:
            ctx) -> None:
       # Provide access to custom (payload-specific) fields
       oldFactory = logging.getLogRecordFactory()
-      def recordFactory(*args, **kwargs):
-         record = oldFactory(*args, **kwargs)
+      def recordFactory(name, level, pathname, lineno, msg, args, exc_info, func=None, sinfo=None, **kwargs):
+         record = oldFactory(name, level, pathname, lineno, msg, args, exc_info, func=func, sinfo=sinfo, kwargs=kwargs)
          record.sapmonid = ctx.sapmonId
          record.payloadversion = PAYLOAD_VERSION
          return record
       tracer.info("adding storage queue log handler")
       try:
-         storageQueue = AzureStorageQueue(tracer,
-                                          ctx.sapmonId,
-                                          ctx.msiClientId,
-                                          ctx.vmInstance["subscriptionId"],
-                                          ctx.vmInstance["resourceGroupName"],
-                                          queueName = STORAGE_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
+         queueName = STORAGE_QUEUE_NAMING_CONVENTION % ctx.sapmonId
+         storageAccount = AzureStorageAccount(tracer,
+                                              ctx.sapmonId,
+                                              ctx.msiClientId,
+                                              ctx.vmInstance["subscriptionId"],
+                                              ctx.vmInstance["resourceGroupName"])
          storageKey = tracing.getAccessKeys(tracer, ctx)
-         queueStorageLogHandler = QueueStorageHandler(account_name=storageQueue.accountName,
+         queueStorageLogHandler = QueueStorageHandler(account_name=storageAccount.accountName,
                                                       account_key = storageKey,
                                                       protocol = "https",
-                                                      queue = storageQueue.name)
+                                                      queue = queueName)
          queueStorageLogHandler.level = DEFAULT_QUEUE_TRACE_LEVEL
          jsonFormatter = JsonFormatter(tracing.config["formatters"]["json"]["fieldMapping"])
          queueStorageLogHandler.setFormatter(jsonFormatter)
@@ -163,17 +171,17 @@ class tracing:
                                    ctx) -> logging.Logger:
        tracer.info("creating customer metrics tracer object")
        try:
-           storageQueue = AzureStorageQueue(tracer,
-                                            ctx.sapmonId,
-                                            ctx.msiClientId,
-                                            ctx.vmInstance["subscriptionId"],
-                                            ctx.vmInstance["resourceGroupName"],
-                                            CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
+           queueName = CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId
+           storageAccount = AzureStorageAccount(tracer,
+                                                ctx.sapmonId,
+                                                ctx.msiClientId,
+                                                ctx.vmInstance["subscriptionId"],
+                                                ctx.vmInstance["resourceGroupName"])
            storageKey = tracing.getAccessKeys(tracer, ctx)
-           customerMetricsLogHandler = QueueStorageHandler(account_name = storageQueue.accountName,
+           customerMetricsLogHandler = QueueStorageHandler(account_name = storageAccount.accountName,
                                                            account_key = storageKey,
                                                            protocol = "https",
-                                                           queue = storageQueue.name)
+                                                           queue = queueName)
        except Exception as e:
            tracer.error("could not add handler for the storage queue logging (%s) " % e)
            return
@@ -212,10 +220,9 @@ class tracing:
          tracer.warning("unable to get access keys from key vault, fetching from storage account (%s) " % e)
 
       tracer.info("fetching queue access keys from storage account")
-      storageQueue = AzureStorageQueue(tracer,
-                                       ctx.sapmonId,
-                                       ctx.msiClientId,
-                                       ctx.vmInstance["subscriptionId"],
-                                       ctx.vmInstance["resourceGroupName"],
-                                       CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION % ctx.sapmonId)
-      return storageQueue.getAccessKey()
+      storageAccount = AzureStorageAccount(tracer,
+                                           ctx.sapmonId,
+                                           ctx.msiClientId,
+                                           ctx.vmInstance["subscriptionId"],
+                                           ctx.vmInstance["resourceGroupName"])
+      return storageAccount.getAccessKey()
