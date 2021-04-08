@@ -111,7 +111,7 @@
             "description": "SAP Netweaver Short Dumps",
             "customLog": "SapNetweaver_ShortDumps",
             "frequencySecs": 300,
-            "includeInCustomerAnalytics": true,
+            "includeInCustomerAnalytics": false,
             "actions": [
                 {
                     "type": "GetShortDumpsMetrics",
