@@ -81,8 +81,8 @@ class MetricClientFactory:
                                    serverTimeZone=kwargs.get("serverTimeZone", None))
 
         except ImportError as importEx:
-            tracer.error("failed to import pyrfc module, unable to initialize NetWeaverRfcClient: ", importEx, exc_info=True)
+            tracer.error("failed to import pyrfc module, unable to initialize NetWeaverRfcClient: ", importEx)
             raise
         except Exception as ex:
-            tracer.error("Unexpected failure trying to create NetWeaverRfcClient: ", ex, exc_info=True)
+            tracer.error("Unexpected failure trying to create NetWeaverRfcClient: ", ex)
             raise

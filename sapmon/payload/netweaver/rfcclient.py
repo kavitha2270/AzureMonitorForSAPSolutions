@@ -679,15 +679,15 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return short_dump_result
         except CommunicationError as e:
             self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         except ABAPApplicationError as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         except Exception as e:
             self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
-                              self.logTag, rfcName, self.sapHostName, e, exc_info=True)
+                              self.logTag, rfcName, self.sapHostName, e)
 
         return None
     
