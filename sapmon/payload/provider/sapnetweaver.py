@@ -957,7 +957,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             sapHostnameStr = self.providerInstance.sapSid
 
             if (not self.providerInstance.areRfcMetricsEnabled()):
-                self.tracer.info("%s Skipping SWNC metrics because RFC SDK metrics not enabled...", self.logTag)
+                self.tracer.info("%s Skipping short dumps metrics because RFC SDK metrics not enabled...", self.logTag)
                 return
 
             # track latency of entire method excecution with dependencies
@@ -984,7 +984,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
             self.updateState()
 
         except Exception as e:
-            self.tracer.error("%s exception trying to fetch SWNC workload metrics for %s [%d ms], error: %s",
+            self.tracer.error("%s exception trying to fetch short dumps workload metrics for %s [%d ms], error: %s",
                               self.logTag, 
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
