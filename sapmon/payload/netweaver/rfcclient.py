@@ -5,6 +5,7 @@ import logging
 import re
 import time
 from datetime import datetime, date, timedelta, time, tzinfo, timezone
+from pandas import DataFrame
 from typing import Dict, List
 
 # SAP modules
@@ -223,6 +224,23 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             # add additional common metric properties
             self._decorateSwncWorkloadMetrics(parsedResult, queryWindowEnd=endDateTime)
 
+            return parsedResult
+
+    """
+    fetch all /SDF/GET_DUMP_LOG metric data and return as a single json string
+    """
+    def getShortDumpsMetrics(self,
+                       startDateTime: datetime,
+                       endDateTime: datetime) -> str:
+        self.tracer.info("executing RFC SDF/GET_DUMP_LOG check")
+        parsedResult = None
+        with self._getConnection() as connection:
+            # get guid to call RFC SDF/GET_DUMP_LOG.
+            rawResult = self._rfcGetDumpLog(connection, startDateTime=startDateTime, endDateTime=endDateTime)
+            if (rawResult != None) :
+                parsedResult = self._parseGetDumpLogResults(rawResult)
+                #add additional common metric properties
+                self._decorateShortDumpMetrics(parsedResult)
             return parsedResult
 
     #####
@@ -635,3 +653,120 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             # record['instanceNr'] = self.sapSysNr
             # record['subdomain'] = self.sapSubdomain
 
+    """
+    make RFC call GET_DUMP_LOG and return result records
+    """
+    def _rfcGetDumpLog(self,
+                          connection: Connection,
+                          startDateTime: datetime,
+                          endDateTime: datetime):
+        rfcName = '/SDF/GET_DUMP_LOG'
+        self.tracer.info("[%s] invoking rfc %s for hostname=%s with date_from=%s, time_from=%s, date_to=%s, time_to=%s",
+                         self.logTag,
+                         rfcName,
+                         self.sapHostName,
+                         startDateTime.date(),
+                         startDateTime.time(),
+                         endDateTime.date(),
+                         endDateTime.time())
+        try:
+            short_dump_result = connection.call(rfcName,
+                                                DATE_FROM=startDateTime.date(),
+                                                TIME_FROM=startDateTime.time(),
+                                                DATE_TO=endDateTime.date(),
+                                                TIME_TO=endDateTime.time())
+
+            return short_dump_result
+        except CommunicationError as e:
+            self.tracer.error("[%s] communication error for rfc %s with hostname: %s (%s)",
+                              self.logTag, rfcName, self.sapHostName, e)
+
+        except ABAPApplicationError as e:
+            self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
+                              self.logTag, rfcName, self.sapHostName, e)
+
+        except Exception as e:
+            self.tracer.error("[%s] Error occured for rfc %s with hostname: %s (%s)",
+                              self.logTag, rfcName, self.sapHostName, e)
+
+        return None
+    
+    """
+    return header information from SDF/GET_DUMP_LOG
+    """
+    def _parseGetDumpLogResults(self, result):
+        rfcName = 'SDF/GET_DUMP_LOG'
+        if result is None:
+            raise ValueError("empty result received for rfc %s for hostname: %s" % (rfcName, self.sapHostName))
+        colNames = None
+        processedResult = None
+        if 'ES_E2E_LOG_STRUCT_DESC' in result:
+            # create new dictionary with only values from filterList if filter dictionary exists.
+            colNames = result['ES_E2E_LOG_STRUCT_DESC']
+            self.tracer.info("[%s] rfc %s returned %d records from hostname: %s",
+                             self.logTag, rfcName, len(colNames), self.sapHostName)
+        else:
+            raise ValueError("%s result does not contain ES_E2E_LOG_STRUCT_DESC key from hostname: %s" % (rfcName, self.sapHostName))
+    
+        if 'ET_E2E_LOG' in result:
+            # create new dictionary with only values from filterList if filter dictionary exists.
+            processedResult = result['ET_E2E_LOG']
+            self.tracer.info("[%s] rfc %s returned %d records from hostname: %s",
+                             self.logTag, rfcName, len(processedResult), self.sapHostName)
+        else:
+            raise ValueError("%s result does not contain ET_E2E_LOG key from hostname: %s" % (rfcName, self.sapHostName))
+
+        processedResult = self._renameColumnNamesInShortDump(processedResult, colNames)
+        return processedResult
+
+    def _renameColumnNamesInShortDump(self, records: list, colNames) -> list:
+       dataframe = DataFrame (records,columns=['E2E_DATE','E2E_TIME','E2E_USER','E2E_SEVERITY','E2E_HOST',
+                                        'FIELD1','FIELD2','FIELD3','FIELD4','FIELD5','FIELD6','FIELD7',
+                                        'FIELD8','FIELD9'])
+       dataframe.rename(columns = {"FIELD1": colNames["FIELD1"],
+                            "FIELD2": colNames["FIELD2"],
+                            "FIELD3": colNames["FIELD3"],
+                            "FIELD4": colNames["FIELD4"],
+                            "FIELD5": colNames["FIELD5"],
+                            "FIELD6": colNames["FIELD6"],
+                            "FIELD7": colNames["FIELD7"],
+                            "FIELD8": colNames["FIELD8"],
+                            "FIELD9": colNames["FIELD9"]},
+                             inplace=True, errors='raise')
+       return dataframe.to_dict('records')
+
+    """
+    take parsed Short dump result set and decorate each record with additional fixed set of 
+    properties expected for metrics records
+    """
+    def _decorateShortDumpMetrics(self, records: list) -> None:
+        currentTimestamp = datetime.now(timezone.utc)
+
+        # "E2E_DATE": "20210329",
+        # "E2E_TIME": "121703",
+        # "E2E_HOST": "sapsbx00_MSX_30"
+        
+        # regex to extract hostname / SID / instance from SERVER property, since 
+        # every short dump analysis record will contain host/instances across the 
+        # entire SAP landscape
+        serverRegex = re.compile(r"(?P<hostname>.+?)_(?P<SID>[^_]+)_(?P<instanceNr>[0-9]+)")
+
+        for record in records:
+            # parse DATUM/TIME fields into serverTimestamp
+            record['UTC Time Stamp'] = self._datetimeFromDateAndTimeString(record['E2E_DATE'], record['E2E_TIME'])
+
+            # parse SERVER field into hostname/SID/InstanceNr properties
+            m = serverRegex.match(record['E2E_HOST'])
+            if m:
+                fields = m.groupdict()
+                record['hostname'] = fields['hostname']
+                record['SID'] = fields['SID']
+                record['instanceNr'] = fields['instanceNr']
+            else:
+                self.tracer.error("[%s] short dump results record had unexpected SERVER format: %s", record['E2E_HOST'])
+                record['hostname'] = ''
+                record['SID'] = ''
+                record['instanceNr'] = ''
+
+            record['subdomain'] = self.sapSubdomain
+            record['timestamp'] = currentTimestamp
