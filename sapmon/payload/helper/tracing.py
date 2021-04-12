@@ -54,7 +54,7 @@ class JsonFormatter(logging.Formatter):
          jsonContent.append(("msg", formattedMsg))
 
          if record.exc_info:
-            jsonContent.append(("stackTrace", traceback.format_exc()))
+            jsonContent.append(("stackTrace", traceback.format_stack()))
 
          # An OrderedDict is used to ensure that the converted data appears in the same order for every record
          return OrderedDict(jsonContent)
