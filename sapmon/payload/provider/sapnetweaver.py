@@ -891,10 +891,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         except Exception as e:
             self.tracer.error("%s exception trying to fetch SMON Analysis Run metrics for %s [%d ms], error: %s", 
-                              self.logTag, 
+                              self.logTag,
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e, 
+                              e,
                               exc_info=True)
             raise
     
@@ -939,10 +939,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         except Exception as e:
             self.tracer.error("%s exception trying to fetch SWNC workload metrics for %s [%d ms], error: %s",
-                              self.logTag, 
+                              self.logTag,
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e, 
+                              e,
                               exc_info=True)
             raise
     
@@ -988,10 +988,11 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
         except Exception as e:
             self.tracer.error("%s exception trying to fetch short dumps workload metrics for %s [%d ms], error: %s",
-                              self.logTag, 
+                              self.logTag,
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e)
+                              e,
+                              exc_info=True)
             raise
     
     def generateJsonString(self) -> str:
