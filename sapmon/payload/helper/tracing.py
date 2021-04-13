@@ -8,6 +8,7 @@ from collections import OrderedDict
 import json
 import logging
 import logging.config
+import traceback
 from typing import Callable, Dict, Optional
 
 # Payload modules
@@ -51,6 +52,9 @@ class JsonFormatter(logging.Formatter):
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
          jsonContent.append(("msg", formattedMsg))
+
+         if record.exc_info:
+            jsonContent.append(("stackTrace", traceback.format_stack()))
 
          # An OrderedDict is used to ensure that the converted data appears in the same order for every record
          return OrderedDict(jsonContent)

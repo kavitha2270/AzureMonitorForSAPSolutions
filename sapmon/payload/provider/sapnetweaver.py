@@ -165,7 +165,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
                                  self.logTag, self.sapHostName, protocol, port, e, TimeUtils.getElapsedMilliseconds(startTime))
 
         self.tracer.error("[%s] error fetching default client hostname=%s on port %s : %s [%d ms]",
-                           self.logTag, self.sapHostName, portList, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime))
+                           self.logTag, self.sapHostName, portList, exceptionDetails, TimeUtils.getElapsedMilliseconds(startTime), exc_info=True)
         raise exceptionDetails
 
     """
@@ -215,7 +215,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             # cache this failed client so we don't retry on future API calls
             self._soapClientCache[url] = None
             self.tracer.error("%s error fetching wsdl url: %s: %s [%d ms]",
-                              self.logTag, url, e, TimeUtils.getElapsedMilliseconds(startTime))
+                              self.logTag, url, e, TimeUtils.getElapsedMilliseconds(startTime), exc_info=True)
             raise e
 
     def callSoapApi(self, client: Client, apiName: str) -> str:
@@ -231,7 +231,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return result
         except Exception as e:
             self.tracer.error("%s error while calling SOAP API: %s for wsdl: %s: %s [%d ms]",
-                              self.logTag, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime))
+                              self.logTag, apiName, client.wsdl.location, e, TimeUtils.getElapsedMilliseconds(startTime), exc_info=True)
             raise e
 
     """
@@ -261,13 +261,13 @@ class sapNetweaverProviderInstance(ProviderInstance):
         try:
             self._validateSoapClient()
         except Exception as e:
-            self.tracer.error("%s SOAP API validation failure: %s", logTag, e)
+            self.tracer.error("%s SOAP API validation failure: %s", logTag, e, exc_info=True)
             return False
 
         try:
             self._validateRfcClient()
         except Exception as e:
-            self.tracer.error("%s RFC client validation failure: %s", logTag, e)
+            self.tracer.error("%s RFC client validation failure: %s", logTag, e, exc_info=True)
             return False
 
         return True
@@ -300,7 +300,8 @@ class sapNetweaverProviderInstance(ProviderInstance):
                               logTag, 
                               self.sapHostName, 
                               self.sapInstanceNr, 
-                              e)
+                              e, 
+                              exc_info=True)
             raise
 
         # Ensure that all APIs in the checks are valid and are marked as unprotected.
@@ -328,11 +329,11 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 except Fault as e:
                     if (e.code == "SOAP-ENV:Client" and e.message == "HTTP Error: 'Unauthorized'"):
                         isValid = False
-                        self.tracer.error("%s SOAP api %s is protected for %s, %s ", logTag, apiName, client.wsdl.location, e)
+                        self.tracer.error("%s SOAP api %s is protected for %s, %s ", logTag, apiName, client.wsdl.location, e, exc_info=True)
                     else:
-                        self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s", logTag, apiName, client.wsdl.location, e)
+                        self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s", logTag, apiName, client.wsdl.location, e, exc_info=True)
                 except Exception as e:
-                    self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s ", logTag, apiName, client.wsdl.location, e)
+                    self.tracer.error("%s suppressing error during validation of SOAP api %s for %s, %s ", logTag, apiName, client.wsdl.location, e, exc_info=True)
 
         if (not isValid):
             raise Exception("%s one or more SOAP APIs failed validation" % (logTag))
@@ -435,7 +436,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
                 isSuccess = True
                 break
             except Exception as e:
-                self.tracer.error("%s could not connect to SAP with hostname: %s and port: %s", self.logTag, hostname, port)
+                self.tracer.error("%s could not connect to SAP with hostname: %s and port: %s", self.logTag, hostname, port, exc_info=True)
 
         if not isSuccess:
             raise Exception("%s could not connect to any SAP instances with hosts %s [%d ms]" % \
@@ -568,7 +569,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return self._areRfcCallsEnabled
 
         except Exception as e:
-            self.tracer.error("%s Exception trying to check if rfc sdk metrics are enabled, %s", self.logTag, e)
+            self.tracer.error("%s Exception trying to check if rfc sdk metrics are enabled, %s", self.logTag, e, exc_info=True)
             sapNetweaverProviderInstance._isRfcInstalled = False
             self._areRfcCallsEnabled = False
 
@@ -690,7 +691,7 @@ class sapNetweaverProviderInstance(ProviderInstance):
             return True
 
         except Exception as e:
-            self.tracer.error("%s exception trying to setup and validate RFC SDK, RFC calls will be disabled: %s", self.logTag, e)
+            self.tracer.error("%s exception trying to setup and validate RFC SDK, RFC calls will be disabled: %s", self.logTag, e, exc_info=True)
 
         return False
 
@@ -818,7 +819,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
                 results = self.providerInstance.callSoapApi(client, apiName)
             except Exception as e:
-                self.tracer.error("%s unable to call the Soap Api %s - %s://%s:%s, %s", self.logTag, apiName, httpProtocol, instance['hostname'], port, e)
+                self.tracer.error("%s unable to call the Soap Api %s - %s://%s:%s, %s", self.logTag, apiName, httpProtocol, instance['hostname'], port, e, exc_info=True)
                 continue
 
             if len(results) != 0:
@@ -893,7 +894,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
                               self.logTag, 
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e)
+                              e, 
+                              exc_info=True)
             raise
     
     """
@@ -940,7 +942,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
                               self.logTag, 
                               sapHostnameStr,
                               TimeUtils.getElapsedMilliseconds(latencyStartTime),
-                              e)
+                              e, 
+                              exc_info=True)
             raise
     
       
