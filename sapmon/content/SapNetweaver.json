@@ -34,7 +34,7 @@
             "description": "SAP Netweaver ABAPGetWPTable",
             "customLog": "SapNetweaver_ABAPGetWPTable",
             "frequencySecs": 60,
-            "includeInCustomerAnalytics": true,
+            "includeInCustomerAnalytics": false,
             "actions": [
                 {
                     "type": "ExecuteGenericWebServiceRequest",
