@@ -220,14 +220,16 @@ def monitor(args: str) -> None:
    ctx.azLa = AzureLogAnalytics(tracer,
                                 logAnalyticsWorkspaceId,
                                 logAnalyticsSharedKey)
-   for i in ctx.instances:
-      thread = ProviderInstanceThread(i)
-      thread.start()
-      threads.append(thread)
+   # for i in ctx.instances:
+   #   thread = ProviderInstanceThread(i)
+   #   thread.start()
+   #   threads.append(thread)
 
-   for t in threads:
-      t.join()
+   # for t in threads:
+   #   t.join()
 
+   formattedContext = json.dumps(ctx)
+   tracer.info(formattedContext)
    tracer.info("monitor payload successfully completed")
    return
 
