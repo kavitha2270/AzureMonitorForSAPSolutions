@@ -12,6 +12,7 @@ PATH_CONTENT       = os.path.join(PATH_ROOT, "content")
 PATH_TRACE         = os.path.join(PATH_ROOT, "trace")
 PATH_STATE         = os.path.join(PATH_ROOT, "state")
 FILENAME_TRACE     = os.path.join(PATH_TRACE, "sapmon.trc")
+FILENAME_REFRESH   = os.path.join(PATH_STATE, "refresh")
 
 # Time formats
 TIME_FORMAT_LOG_ANALYTICS = "%a, %d %b %Y %H:%M:%S GMT"
@@ -25,9 +26,14 @@ DEFAULT_FILE_TRACE_LEVEL    = logging.INFO
 DEFAULT_QUEUE_TRACE_LEVEL   = logging.DEBUG
 
 # Config parameters
-CONFIG_SECTION_GLOBAL = "-global-"
-METHODNAME_ACTION     = "_action%s"
-STORAGE_ACCESS_KEY_NAME = "storageAccessKey"
+CONFIG_SECTION_GLOBAL     = "-global-"
+METHODNAME_ACTION         = "_action%s"
+STORAGE_ACCESS_KEY_NAME   = "storageAccessKey"
+CONFIG_REFRESH_IN_SECONDS = 86400
+
+# Parallel configurations
+NUMBER_OF_THREADS     = 10
+CHECK_WAIT_IN_SECONDS = 5
 
 # Naming conventions for generated resources
 KEYVAULT_NAMING_CONVENTION               = "sapmon-kv-%s"

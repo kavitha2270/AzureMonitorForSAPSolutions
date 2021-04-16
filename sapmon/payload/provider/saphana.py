@@ -187,7 +187,7 @@ class saphanaProviderCheck(ProviderCheck):
 
       # Iterate through the prioritized list of hosts to try
       cursor = None
-      self.tracer.debug("hostsToTry=%s" % hostsToTry)
+      self.tracer.debug("[%s] hostsToTry=%s" % (self.fullName, hostsToTry))
       for host in hostsToTry:
          try:
             connection = self.providerInstance._establishHanaConnectionToHost(hostname = host)
