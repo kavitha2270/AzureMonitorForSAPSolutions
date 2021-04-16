@@ -8,6 +8,7 @@
 #
 
 # Python modules
+from datetime import datetime
 import re
 import sys
 
@@ -25,6 +26,8 @@ class Context(object):
 
    globalParams = {}
    instances = []
+   checkLockSet = set()
+   lastConfigRefreshTime = datetime(2020, 1, 1)
 
    def __init__(self,
                 tracer,
