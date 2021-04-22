@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 import json
 import logging
 from retry.api import retry_call
+from time import time
 from typing import Callable, Dict, List, Optional
 
 # Payload modules
@@ -184,6 +185,7 @@ class ProviderCheck(ABC):
    fullName = None
    tracer = None
    colTimeGenerated = None
+   duration = 0
 
    def __init__(self,
                 providerInstance: ProviderInstance,
@@ -235,6 +237,7 @@ class ProviderCheck(ABC):
    # Method that gets called when this check is executed
    # Returns a JSON-formatted string that can be ingested into Log Analytics
    def run(self) -> str:
+      startTime = time()
       self.tracer.info("[%s] executing all actions of check" % self.fullName)
       self.tracer.debug("[%s] actions=%s" % (self.fullName,
                                              self.actions))
@@ -255,6 +258,7 @@ class ProviderCheck(ABC):
                                                                                                             methodName,
                                                                                                             e))
             break
+      self.duration = TimeUtils.getElapsedMilliseconds(startTime)
       return self.generateJsonString()
 
    # Method to generate a JSON object that can be ingested into Log Analytics

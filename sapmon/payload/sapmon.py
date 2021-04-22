@@ -14,7 +14,9 @@ import os
 import re
 import sys
 import threading
+from time import time
 import traceback
+from typing import Dict
 
 # Payload modules
 from const import *
@@ -207,7 +209,7 @@ def deleteProvider(args: str) -> None:
 def monitor(args: str) -> None:
    global ctx, tracer
    tracer.info("starting monitor payload")
-
+   startTime = time()
    threads = []
    if not loadConfig():
       tracer.critical("failed to load config from KeyVault")
@@ -220,16 +222,17 @@ def monitor(args: str) -> None:
    ctx.azLa = AzureLogAnalytics(tracer,
                                 logAnalyticsWorkspaceId,
                                 logAnalyticsSharedKey)
-   # for i in ctx.instances:
-   #   thread = ProviderInstanceThread(i)
-   #   thread.start()
-   #   threads.append(thread)
+   for i in ctx.instances:
+     thread = ProviderInstanceThread(i)
+     thread.start()
+     threads.append(thread)
 
-   # for t in threads:
-   #   t.join()
+   for t in threads:
+     t.join()
 
-   formattedContext = json.dumps(ctx)
-   tracer.info(formattedContext)
+   duration = TimeUtils.getElapsedMilliseconds(startTime)
+
+   heartbeat(duration)
    tracer.info("monitor payload successfully completed")
    return
 
@@ -256,6 +259,37 @@ def ensureDirectoryStructure() -> None:
                                                                                                      e))
          sys.exit(ERROR_FILE_PERMISSION_DENIED)
    return
+
+def heartbeat(duration: int) -> None: 
+   global ctx
+
+   providerJson = {
+      "Count": len(ctx.instances),
+      "Duration": duration,
+      "Providers": []
+   }
+         
+   for i in ctx.instances:
+      pi = providerJson.get("Providers", [])
+      
+      provider = {
+         "Name": i.name,
+         "Checks": []
+      }
+
+      for check in i.checks:
+         if check.isEnabled() == True:
+            checks = provider.get("Checks", [])
+            checkJson = {
+               "Name": check.name,
+               "Duration": check.duration
+            }
+            checks.append(checkJson)
+            provider.update({"Checks":checks})
+      pi.append(provider)
+      providerJson.update({"Providers":pi})
+                     
+   tracer.info(json.dumps(providerJson))
 
 # Main function with argument parser
 def main() -> None:

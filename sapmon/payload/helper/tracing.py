@@ -10,6 +10,7 @@ import logging
 import logging.config
 import traceback
 from typing import Callable, Dict, Optional
+import uuid
 
 # Payload modules
 from const import *
@@ -17,13 +18,16 @@ from helper.azure import *
 
 # Formats a log/trace payload as JSON-formatted string
 class JsonFormatter(logging.Formatter):
-   def __init__(self,
+   runId = None
+
+   def __init__(self,            
                 fieldMapping: Dict[str, str] = {},
                 datefmt: Optional[str] = None,
                 customJson: Optional[json.JSONEncoder] = None):
       logging.Formatter.__init__(self, None, datefmt)
       self.fieldMapping = fieldMapping
       self.customJson = customJson
+      self.runId = str(uuid.uuid4())
 
    # Overridden from the parent class to look for the asctime attribute in the fields attribute
    def usesTime(self) -> bool:
@@ -52,6 +56,7 @@ class JsonFormatter(logging.Formatter):
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
          jsonContent.append(("msg", formattedMsg))
+         jsonContent.append(("runId", self.runId))
 
          if record.exc_info:
             jsonContent.append(("stackTrace", traceback.format_stack()))
