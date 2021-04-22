@@ -818,6 +818,10 @@ class sapNetweaverProviderCheck(ProviderCheck):
             try:
                 client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
                 results = self.providerInstance.callSoapApi(client, apiName)
+                if(apiName == "GetProcessList"):
+                    results = self._sanitizeGetProcessList(apiName, results)
+                elif(apiName == "ABAPGetWPTable"):
+                    results = self._sanitizeABAPGetWPTable(apiName, results)
             except Exception as e:
                 self.tracer.error("%s unable to call the Soap Api %s - %s://%s:%s, %s", self.logTag, apiName, httpProtocol, instance['hostname'], port, e, exc_info=True)
                 continue
@@ -850,6 +854,60 @@ class sapNetweaverProviderCheck(ProviderCheck):
 
     def _actionExecuteEnqGetStatistic(self, apiName: str, filterFeatures: list, filterType: str) -> None:
         self._executeWebServiceRequest(apiName, filterFeatures, filterType, self._parseResult)
+
+    """
+    Method to parse the value based on the key provided and set the values with None value to empty string ''
+    """
+    def _getKeyValue(dictionary, key, apiName):
+            if key not in dictionary:
+                raise ValueError("Result received for api %s does not contain key: %s"% (apiName, key))
+            if(dictionary[key] == None):
+                dictionary[key] = ""
+            return dictionary[key]
+
+    """
+    Method to parse the results from ABAPGetWPTable and set the strings with None value to empty string ''
+    """
+    def _sanitizeABAPGetWPTable(self, apiName, records: list) -> list:
+       processed_results = list()
+       for record in records:
+            processed_result = {
+                "Action": self._getKeyValue(record, 'Action', apiName),
+                "Client": self._getKeyValue(record, 'Client', apiName),
+                "Cpu": self._getKeyValue(record, 'Cpu', apiName),
+                "Err": self._getKeyValue(record, 'Err', apiName),
+                "No": self._getKeyValue(record, 'No', apiName),
+                "Pid": self._getKeyValue(record, 'Pid', apiName),
+                "Program": self._getKeyValue(record, 'Program', apiName),
+                "Reason": self._getKeyValue(record, 'Reason', apiName),
+                "Sem": self._getKeyValue(record, 'Sem', apiName),
+                "Start": self._getKeyValue(record, 'Start', apiName),
+                "Status": self._getKeyValue(record, 'Status', apiName),
+                "Table": self._getKeyValue(record, 'Table', apiName),
+                "Time": self._getKeyValue(record, 'Time', apiName),
+                "Typ": self._getKeyValue(record, 'Typ', apiName),
+                "User": self._getKeyValue(record, 'User', apiName)
+            }
+            processed_results.append(processed_result)
+       return processed_results
+
+    """
+    Method to parse the results from GetProcessList and set the strings with None value to empty string ''
+    """
+    def _sanitizeGetProcessList(self, apiName, records: list) -> list:
+       processed_results = list()
+       for record in records:
+            processed_result = {
+                "Action": self._getKeyValue(record, 'description', apiName),
+                "Client": self._getKeyValue(record, 'dispstatus', apiName),
+                "Cpu": self._getKeyValue(record, 'elapsedtime', apiName),
+                "Err": self._getKeyValue(record, 'name', apiName),
+                "No": self._getKeyValue(record, 'pid', apiName),
+                "Pid": self._getKeyValue(record, 'starttime', apiName),
+                "Program": self._getKeyValue(record, 'textstatus', apiName)
+            }
+            processed_results.append(processed_result)
+       return processed_results
 
     """
     netweaver provider check action to query for SDF/SMON Analysis Run metrics
