@@ -858,7 +858,7 @@ class sapNetweaverProviderCheck(ProviderCheck):
     """
     Method to parse the value based on the key provided and set the values with None value to empty string ''
     """
-    def _getKeyValue(dictionary, key, apiName):
+    def _getKeyValue(self, dictionary, key, apiName):
             if key not in dictionary:
                 raise ValueError("Result received for api %s does not contain key: %s"% (apiName, key))
             if(dictionary[key] == None):
@@ -898,13 +898,13 @@ class sapNetweaverProviderCheck(ProviderCheck):
        processed_results = list()
        for record in records:
             processed_result = {
-                "Action": self._getKeyValue(record, 'description', apiName),
-                "Client": self._getKeyValue(record, 'dispstatus', apiName),
-                "Cpu": self._getKeyValue(record, 'elapsedtime', apiName),
-                "Err": self._getKeyValue(record, 'name', apiName),
-                "No": self._getKeyValue(record, 'pid', apiName),
-                "Pid": self._getKeyValue(record, 'starttime', apiName),
-                "Program": self._getKeyValue(record, 'textstatus', apiName)
+                "description": self._getKeyValue(record, 'description', apiName),
+                "dispstatus": self._getKeyValue(record, 'dispstatus', apiName),
+                "elapsedtime": self._getKeyValue(record, 'elapsedtime', apiName),
+                "name": self._getKeyValue(record, 'name', apiName),
+                "pid": self._getKeyValue(record, 'pid', apiName),
+                "starttime": self._getKeyValue(record, 'starttime', apiName),
+                "textstatus": self._getKeyValue(record, 'textstatus', apiName)
             }
             processed_results.append(processed_result)
        return processed_results
