@@ -41,6 +41,9 @@ STORAGE_ACCOUNT_NAMING_CONVENTION        = "sapmonsto%s"
 STORAGE_QUEUE_NAMING_CONVENTION          = "sapmon-que-%s"
 CUSTOMER_METRICS_QUEUE_NAMING_CONVENTION = "sapmon-anl-%s"
 
+# Key Vault Secret URL regex
+REGEX_EXTERNAL_KEYVAULT_URL = "https://([A-Za-z0-9\-]+).vault.azure.net/secrets/([A-Za-z0-9\-]+)(\/)?([A-Za-z0-9\-]+)?"
+
 # Error codes
 ERROR_GETTING_AUTH_TOKEN       = 10
 ERROR_GETTING_SAPMONID         = 11

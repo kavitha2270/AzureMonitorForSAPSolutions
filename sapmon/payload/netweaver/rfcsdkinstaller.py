@@ -124,7 +124,7 @@ else:
 
 # regex for extracting container and blob name from RFC SDK Blob URL
 # "https://{accountName}.blob.core.windows.net/{containerName}}/{blobName}"
-BLOB_URL_REGEX = re.compile(r"https?\://(?P<accountName>[^\.]+)[^/]+/(?P<containerName>[^/]+)/(?P<blobName>.+)")
+BLOB_URL_REGEX = re.compile(r"https?\://(?P<accountName>[^\.]+)[^/]+/(?P<containerName>[^/]+)/(?P<blobName>.+)", re.IGNORECASE)
 
 class SapRfcSdkInstaller:
 

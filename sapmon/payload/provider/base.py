@@ -1,6 +1,6 @@
 # Python modules
 from abc import ABC, abstractmethod
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 from retry.api import retry_call
@@ -227,10 +227,19 @@ class ProviderCheck(ABC):
                                                                                      lastRunLocal,
                                                                                      self.frequencySecs,
                                                                                      datetime.utcnow()))
-      if lastRunLocal and \
-         lastRunLocal + timedelta(seconds = self.frequencySecs) > datetime.utcnow():
-         return False
+
+      if lastRunLocal:
+         # want to support timezone naive and aware datetime comparision
+         # default to utc datetime value without actual utc time zone attribute
+         utcTime = datetime.utcnow()
+         if lastRunLocal.tzinfo:
+            # if lastRunLocal is time zone aware, then use utc datetime that has timezone populated
+            utcTime = datetime.now(timezone.utc)
+         if (lastRunLocal + timedelta(seconds = self.frequencySecs) > utcTime):
+            return False
+      
       return True
+
 
    # Method that gets called when this check is executed
    # Returns a JSON-formatted string that can be ingested into Log Analytics
