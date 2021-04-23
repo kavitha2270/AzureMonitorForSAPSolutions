@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from time import time
 from typing import Any, Callable
+import re
 import requests
 from requests import Session
 from threading import Lock
@@ -15,7 +16,6 @@ from zeep.transports import Transport
 from zeep.exceptions import Fault
 
 # Payload modules
-from const import PAYLOAD_VERSION
 from const import *
 from helper.azure import AzureStorageAccount
 from helper.context import *
@@ -109,11 +109,40 @@ class sapNetweaverProviderInstance(ProviderInstance):
         self.sapInstanceNr = str(instanceNr).zfill(2)
         self.sapSubdomain = self.providerProperties.get("sapSubdomain", "")
 
-
         self.sapUsername = self.providerProperties.get('sapUsername', None)
         self.sapPassword = self.providerProperties.get('sapPassword', None)
         self.sapClientId = self.providerProperties.get('sapClientId', None)
         self.sapRfcSdkBlobUrl = self.providerProperties.get('sapRfcSdkBlobUrl', None)
+
+        # if user did not specify password directly via UI, check to see if they instead
+        # provided link to Key Vault secret
+        if not self.sapPassword:
+            sapPasswordKeyVaultUrl = self.providerProperties.get("sapPasswordKeyVaultUrl", None)
+            if sapPasswordKeyVaultUrl:
+                self.tracer.info("%s sapPassword key vault URL specified, attempting to fetch from %s", self.logTag, sapPasswordKeyVaultUrl)
+
+                try:
+                    keyVaultUrlPatternMatch = re.match(REGEX_EXTERNAL_KEYVAULT_URL,
+                                                       sapPasswordKeyVaultUrl,
+                                                       re.IGNORECASE)
+                    keyVaultName = keyVaultUrlPatternMatch.group(1)
+                    secretName = keyVaultUrlPatternMatch.group(2)
+                except Exception as e:
+                    self.tracer.error("%s invalid sapPassword Key Vault secret url format: %s", self.logTag, sapPasswordKeyVaultUrl)
+                    return False
+                
+                try:
+                    kv = AzureKeyVault(self.tracer, keyVaultName, self.ctx.msiClientId)
+                    self.sapPassword = kv.getSecret(secretName, None).value
+
+                    if not self.sapPassword:
+                        raise Exception("failed to read sapPassword secret")
+                except Exception as e:
+                    self.tracer.error("%s error fetching sapPassword secret from keyVault url: %s, %s",
+                                      self.logTag, 
+                                      sapPasswordKeyVaultUrl, 
+                                      e)
+                    return False
 
         return True
 
