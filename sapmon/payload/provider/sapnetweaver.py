@@ -819,9 +819,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
                 client = self.providerInstance.getClient(instance['hostname'], httpProtocol, port)
                 results = self.providerInstance.callSoapApi(client, apiName)
                 if(apiName == "GetProcessList"):
-                    results = self._sanitizeGetProcessList(apiName, results)
+                    results = self._sanitizeGetProcessList(results)
                 elif(apiName == "ABAPGetWPTable"):
-                    results = self._sanitizeABAPGetWPTable(apiName, results)
+                    results = self._sanitizeABAPGetWPTable(results)
             except Exception as e:
                 self.tracer.error("%s unable to call the Soap Api %s - %s://%s:%s, %s", self.logTag, apiName, httpProtocol, instance['hostname'], port, e, exc_info=True)
                 continue
@@ -868,7 +868,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
     """
     Method to parse the results from ABAPGetWPTable and set the strings with None value to empty string ''
     """
-    def _sanitizeABAPGetWPTable(self, apiName, records: list) -> list:
+    def _sanitizeABAPGetWPTable(self, records: list) -> list:
+       apiName = "ABAPGetWPTable"
        processed_results = list()
        for record in records:
             processed_result = {
@@ -894,7 +895,8 @@ class sapNetweaverProviderCheck(ProviderCheck):
     """
     Method to parse the results from GetProcessList and set the strings with None value to empty string ''
     """
-    def _sanitizeGetProcessList(self, apiName, records: list) -> list:
+    def _sanitizeGetProcessList(self, records: list) -> list:
+       apiName = "GetProcessList"
        processed_results = list()
        for record in records:
             processed_result = {
