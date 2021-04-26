@@ -753,7 +753,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
 
         for record in records:
             # parse DATUM/TIME fields into serverTimestamp
-            record['UTC Time Stamp'] = self._datetimeFromDateAndTimeString(record['E2E_DATE'], record['E2E_TIME'])
+            record['serverTimestamp'] = self._datetimeFromDateAndTimeString(record['E2E_DATE'], record['E2E_TIME'])
 
             # parse SERVER field into hostname/SID/InstanceNr properties
             m = serverRegex.match(record['E2E_HOST'])
