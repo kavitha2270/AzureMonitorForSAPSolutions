@@ -17,9 +17,7 @@ from const import *
 from helper.azure import *
 
 # Formats a log/trace payload as JSON-formatted string
-class JsonFormatter(logging.Formatter):
-   runId = None
-
+class JsonFormatter(logging.Formatter):  
    def __init__(self,            
                 fieldMapping: Dict[str, str] = {},
                 datefmt: Optional[str] = None,
@@ -56,7 +54,7 @@ class JsonFormatter(logging.Formatter):
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
          jsonContent.append(("msg", formattedMsg))
-         jsonContent.append(("runId", self.runId))
+         jsonContent.append(("sapMonitorRunId", self.runId))
 
          if record.exc_info:
             jsonContent.append(("stackTrace", traceback.format_stack()))

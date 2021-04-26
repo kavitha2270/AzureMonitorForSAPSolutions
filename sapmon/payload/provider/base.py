@@ -185,7 +185,6 @@ class ProviderCheck(ABC):
    fullName = None
    tracer = None
    colTimeGenerated = None
-   duration = 0
 
    def __init__(self,
                 providerInstance: ProviderInstance,
@@ -209,6 +208,9 @@ class ProviderCheck(ABC):
       }
       self.fullName = "%s.%s" % (self.providerInstance.fullName, self.name)
       self.tracer = providerInstance.tracer
+      self.duration = 0
+      self.success = False
+      self.checkMessage = None
 
    # Return if this check is enabled or not
    def isEnabled(self) -> bool:
@@ -238,6 +240,7 @@ class ProviderCheck(ABC):
    # Returns a JSON-formatted string that can be ingested into Log Analytics
    def run(self) -> str:
       startTime = time()
+      self.success = False
       self.tracer.info("[%s] executing all actions of check" % self.fullName)
       self.tracer.debug("[%s] actions=%s" % (self.fullName,
                                              self.actions))
@@ -253,12 +256,14 @@ class ProviderCheck(ABC):
 
          try :
             retry_call(method, fkwargs=parameters, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+            self.success = True
          except Exception as e:
             self.tracer.error("[%s] error executing action %s, Exception %s, skipping remaining actions" % (self.fullName,
                                                                                                             methodName,
                                                                                                             e))
+            self.checkMessage = str(e)
             break
-      self.duration = TimeUtils.getElapsedMilliseconds(startTime)
+      self.duration = TimeUtils.getElapsedMilliseconds(startTime)      
       return self.generateJsonString()
 
    # Method to generate a JSON object that can be ingested into Log Analytics

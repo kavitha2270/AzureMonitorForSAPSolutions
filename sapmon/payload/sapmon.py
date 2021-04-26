@@ -282,7 +282,9 @@ def heartbeat(duration: int) -> None:
             checks = provider.get("Checks", [])
             checkJson = {
                "Name": check.name,
-               "Duration": check.duration
+               "Duration": check.duration,
+               "Success": check.success,
+               "Message": check.checkMessage
             }
             checks.append(checkJson)
             provider.update({"Checks":checks})
