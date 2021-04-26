@@ -69,7 +69,7 @@
             "name": "Disks",
             "description": "SAP HANA Disks",
             "customLog": "SapHana_Disks",
-            "frequencySecs": 60,
+            "frequencySecs": 3600,
             "includeInCustomerAnalytics": true,
             "actions": [
                 {
