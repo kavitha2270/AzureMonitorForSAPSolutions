@@ -20,7 +20,6 @@ import pyhdbcli
 ###############################################################################
 
 # HANA-specific constants
-REGEX_EXTERNAL_KEYVAULT_URL = "https://([A-Za-z0-9\-]+).vault.azure.net/secrets/([A-Za-z0-9\-]+)(\/)?([A-Za-z0-9\-]+)?"
 TIMEOUT_HANA_SECS           = 5
 COL_LOCAL_UTC               = "_LOCAL_UTC"
 COL_SERVER_UTC              = "_SERVER_UTC"
@@ -187,7 +186,7 @@ class saphanaProviderCheck(ProviderCheck):
 
       # Iterate through the prioritized list of hosts to try
       cursor = None
-      self.tracer.debug("hostsToTry=%s" % hostsToTry)
+      self.tracer.debug("[%s] hostsToTry=%s" % (self.fullName, hostsToTry))
       for host in hostsToTry:
          try:
             connection = self.providerInstance._establishHanaConnectionToHost(hostname = host)

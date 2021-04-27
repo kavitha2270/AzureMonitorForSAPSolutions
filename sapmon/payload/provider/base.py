@@ -1,6 +1,6 @@
 # Python modules
 from abc import ABC, abstractmethod
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 from retry.api import retry_call
@@ -212,11 +212,13 @@ class ProviderCheck(ABC):
       self.success = False
       self.checkMessage = None
 
+   # Return check name for locking
+   def getLockName(self) -> str:
+      return "%s.%s" % (self.providerInstance.fullName, self.name)
+
    # Return if this check is enabled or not
    def isEnabled(self) -> bool:
-      self.tracer.debug("[%s] verifying if check is enabled" % self.fullName)
       if not self.state["isEnabled"]:
-         self.tracer.info("[%s] check is currently not enabled, skipping" % self.fullName)
          return False
       return True
 
@@ -224,17 +226,24 @@ class ProviderCheck(ABC):
    def isDue(self) -> bool:
       # lastRunLocal = last execution time on collector VM
       # lastRunServer (used in provider) = last execution time on (HANA) server
-      self.tracer.debug("[%s] verifying if check is due to be run" % self.fullName)
       lastRunLocal = self.state.get("lastRunLocal", None)
       self.tracer.debug("[%s] lastRunLocal=%s; frequencySecs=%d; currentLocal=%s" % (self.fullName,
                                                                                      lastRunLocal,
                                                                                      self.frequencySecs,
                                                                                      datetime.utcnow()))
-      if lastRunLocal and \
-         lastRunLocal + timedelta(seconds = self.frequencySecs) > datetime.utcnow():
-         self.tracer.info("[%s] check is not due yet, skipping" % self.fullName)
-         return False
+
+      if lastRunLocal:
+         # want to support timezone naive and aware datetime comparision
+         # default to utc datetime value without actual utc time zone attribute
+         utcTime = datetime.utcnow()
+         if lastRunLocal.tzinfo:
+            # if lastRunLocal is time zone aware, then use utc datetime that has timezone populated
+            utcTime = datetime.now(timezone.utc)
+         if (lastRunLocal + timedelta(seconds = self.frequencySecs) > utcTime):
+            return False
+      
       return True
+
 
    # Method that gets called when this check is executed
    # Returns a JSON-formatted string that can be ingested into Log Analytics

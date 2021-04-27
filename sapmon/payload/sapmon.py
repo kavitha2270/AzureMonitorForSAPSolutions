@@ -9,12 +9,18 @@
 # Python modules
 from abc import ABC, abstractmethod
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import json
 import os
 import re
 import sys
 import threading
+<<<<<<< HEAD
 from time import time
+=======
+from time import sleep
+>>>>>>> master
 import traceback
 from typing import Dict
 
@@ -30,40 +36,31 @@ from helper.updatefactory import *
 
 ###############################################################################
 
-class ProviderInstanceThread(threading.Thread):
-   def __init__(self, providerInstance):
-      threading.Thread.__init__(self)
-      self.providerInstance = providerInstance
+def runCheck(check):
+   global ctx, tracer
 
-   def run(self):
-      global ctx, tracer
-      for check in self.providerInstance.checks:
-         tracer.info("starting check %s" % (check.fullName))
+   try:
+      # Run all actions that are part of this check
+      resultJson = check.run()
 
-         # Skip this check if it's not enabled or not due yet
-         if (check.isEnabled() == False) or (check.isDue() == False):
-            continue
+      # Ingest result into Log Analytics
+      ctx.azLa.ingest(check.customLog,
+                        resultJson,
+                        check.colTimeGenerated)
 
-         # Run all actions that are part of this check
-         resultJson = check.run()
+      # Persist updated internal state to provider state file
+      check.providerInstance.writeState()
 
-         # Ingest result into Log Analytics
-         ctx.azLa.ingest(check.customLog,
-                         resultJson,
-                         check.colTimeGenerated)
-
-         # Persist updated internal state to provider state file
-         self.providerInstance.writeState()
-
-         # Ingest result into Customer Analytics
-         enableCustomerAnalytics = ctx.globalParams.get("enableCustomerAnalytics", True)
-         if enableCustomerAnalytics and check.includeInCustomerAnalytics:
-             tracing.ingestCustomerAnalytics(tracer,
-                                             ctx,
-                                             check.customLog,
-                                             resultJson)
-         tracer.info("finished check %s" % (check.fullName))
-      return
+      # Ingest result into Customer Analytics
+      enableCustomerAnalytics = ctx.globalParams.get("enableCustomerAnalytics", True)
+      if enableCustomerAnalytics and check.includeInCustomerAnalytics:
+            tracing.ingestCustomerAnalytics(tracer,
+                                          ctx,
+                                          check.customLog,
+                                          resultJson)
+      tracer.info("finished check %s" % (check.fullName))
+   finally:
+      ctx.checkLockSet.remove(check.getLockName())
 
 ###############################################################################
 
@@ -173,6 +170,7 @@ def addProvider(args: str = None,
    if not saveInstanceToConfig(instanceProperties):
       tracer.error("could not save provider instance %s to KeyVault" % newProviderInstance.fullName)
       sys.exit(ERROR_ADDING_PROVIDER)
+   open(FILENAME_REFRESH, "w")
    tracer.info("successfully added provider instance %s to KeyVault" % newProviderInstance.fullName)
    return True
 
@@ -202,6 +200,7 @@ def deleteProvider(args: str) -> None:
       if not ctx.azKv.deleteSecret(secretToDelete):
          tracer.error("error deleting KeyVault secret %s (already marked for deletion?)" % secretToDelete)
       else:
+         open(FILENAME_REFRESH, "w")
          tracer.info("provider %s successfully deleted from KeyVault" % secretToDelete)
    return
 
@@ -209,6 +208,7 @@ def deleteProvider(args: str) -> None:
 def monitor(args: str) -> None:
    global ctx, tracer
    tracer.info("starting monitor payload")
+<<<<<<< HEAD
    startTime = time()
    threads = []
    if not loadConfig():
@@ -235,6 +235,65 @@ def monitor(args: str) -> None:
    heartbeat(duration)
    tracer.info("monitor payload successfully completed")
    return
+=======
+
+   pool = ThreadPoolExecutor(NUMBER_OF_THREADS)
+   allChecks = []
+
+   while True:
+      now = datetime.now()
+      secondsSinceRefresh = (now-ctx.lastConfigRefreshTime).total_seconds()
+      refresh = False
+
+      # check if config needs refresh
+      # needs refresh if 24 hours as passed or refresh file found
+      if secondsSinceRefresh > CONFIG_REFRESH_IN_SECONDS:
+         tracer.info("Config has not been refreshed in %d seconds, refreshing", secondsSinceRefresh)
+         refresh = True
+      elif os.path.isfile(FILENAME_REFRESH):
+         tracer.info("Refresh file found, refreshing")
+         refresh = True
+
+      if refresh:
+         allChecks = []
+         ctx.instances = []
+
+         if not loadConfig():
+            tracer.critical("failed to load config from KeyVault")
+            sys.exit(ERROR_LOADING_CONFIG)
+         logAnalyticsWorkspaceId = ctx.globalParams.get("logAnalyticsWorkspaceId", None)
+         logAnalyticsSharedKey = ctx.globalParams.get("logAnalyticsSharedKey", None)
+         if not logAnalyticsWorkspaceId or not logAnalyticsSharedKey:
+            tracer.critical("global config must contain logAnalyticsWorkspaceId and logAnalyticsSharedKey")
+            sys.exit(ERROR_GETTING_LOG_CREDENTIALS)
+         ctx.azLa = AzureLogAnalytics(tracer,
+                                      logAnalyticsWorkspaceId,
+                                      logAnalyticsSharedKey)
+
+         for i in ctx.instances:
+            for c in i.checks:
+               allChecks.append(c)
+
+         ctx.lastConfigRefreshTime = datetime.now()
+         if os.path.exists(FILENAME_REFRESH):
+            os.remove(FILENAME_REFRESH)
+
+      for check in allChecks:
+         if check.getLockName() in ctx.checkLockSet:
+            tracer.info("[%s] already queued/executing, skipping" % check.fullName)
+            continue
+         elif not check.isEnabled():
+            tracer.info("[%s] not enabled, skipping" % check.fullName)
+            continue
+         elif not check.isDue():
+            tracer.info("[%s] not due for execution, skipping" % check.fullName)
+            continue
+         else:
+            tracer.info("[%s] getting queued" % check.fullName)
+            ctx.checkLockSet.add(check.getLockName())
+            pool.submit(runCheck, check)
+      sleep(CHECK_WAIT_IN_SECONDS)
+>>>>>>> master
 
 # prepareUpdate will prepare the resources like keyvault, log analytics etc for the version passed as an argument
 # prepareUpdate needs to be run when a version upgrade requires specific update to the content of the resources
