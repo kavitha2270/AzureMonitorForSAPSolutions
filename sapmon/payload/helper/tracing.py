@@ -17,8 +17,8 @@ from const import *
 from helper.azure import *
 
 # Formats a log/trace payload as JSON-formatted string
-class JsonFormatter(logging.Formatter):  
-   def __init__(self,            
+class JsonFormatter(logging.Formatter):
+   def __init__(self,
                 fieldMapping: Dict[str, str] = {},
                 datefmt: Optional[str] = None,
                 customJson: Optional[json.JSONEncoder] = None):
