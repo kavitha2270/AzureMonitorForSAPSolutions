@@ -1089,6 +1089,9 @@ class sapNetweaverProviderCheck(ProviderCheck):
         if self.lastResult is not None and len(self.lastResult) != 0:
             for result in self.lastResult:
                 result['SAPMON_VERSION'] = PAYLOAD_VERSION
+                result['PROVIDER_INSTANCE'] = self.providerInstance.name
+                result['METADATA'] = self.providerInstance.metadata
+    
         resultJsonString = json.dumps(self.lastResult, sort_keys=True, indent=4, cls=JsonEncoder)
         self.tracer.debug("%s resultJson=%s", self.logTag, str(resultJsonString))
         return resultJsonString

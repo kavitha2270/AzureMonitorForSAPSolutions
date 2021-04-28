@@ -492,6 +492,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                 record['SID'] = ''
                 record['instanceNr'] = ''
 
+            record['client'] = self.sapClient
             record['subdomain'] = self.sapSubdomain
             record['timestamp'] = currentTimestamp
 
@@ -645,13 +646,11 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         currentTimestamp = datetime.now(timezone.utc)
 
         for record in records:
+            # swnc workload metrics are aggregated across the SID, so no need to include hostname/instance/subdomain dimensions
             record['timestamp'] = currentTimestamp
             record['serverTimestamp'] = queryWindowEnd
             record['SID'] = self.sapSid
-            # swnc workload metrics are aggregated across the SID, so no need to include hostname/instance/subdomain dimensions
-            # record['hostname'] = self.sapHostName
-            # record['instanceNr'] = self.sapSysNr
-            # record['subdomain'] = self.sapSubdomain
+            record['client'] = self.sapClient
 
     """
     make RFC call GET_DUMP_LOG and return result records
@@ -768,5 +767,6 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                 record['SID'] = ''
                 record['instanceNr'] = ''
 
+            record['client'] = self.sapClient
             record['subdomain'] = self.sapSubdomain
             record['timestamp'] = currentTimestamp
