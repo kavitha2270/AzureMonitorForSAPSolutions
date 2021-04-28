@@ -10,19 +10,17 @@
 from abc import ABC, abstractmethod
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 from datetime import datetime
 import json
 import os
 import re
 import sys
 import threading
-<<<<<<< HEAD
-from time import time
-=======
-from time import sleep
->>>>>>> master
+from time import sleep, time
 import traceback
 from typing import Dict
+
 
 # Payload modules
 from const import *
@@ -208,34 +206,6 @@ def deleteProvider(args: str) -> None:
 def monitor(args: str) -> None:
    global ctx, tracer
    tracer.info("starting monitor payload")
-<<<<<<< HEAD
-   startTime = time()
-   threads = []
-   if not loadConfig():
-      tracer.critical("failed to load config from KeyVault")
-      sys.exit(ERROR_LOADING_CONFIG)
-   logAnalyticsWorkspaceId = ctx.globalParams.get("logAnalyticsWorkspaceId", None)
-   logAnalyticsSharedKey = ctx.globalParams.get("logAnalyticsSharedKey", None)
-   if not logAnalyticsWorkspaceId or not logAnalyticsSharedKey:
-      tracer.critical("global config must contain logAnalyticsWorkspaceId and logAnalyticsSharedKey")
-      sys.exit(ERROR_GETTING_LOG_CREDENTIALS)
-   ctx.azLa = AzureLogAnalytics(tracer,
-                                logAnalyticsWorkspaceId,
-                                logAnalyticsSharedKey)
-   for i in ctx.instances:
-     thread = ProviderInstanceThread(i)
-     thread.start()
-     threads.append(thread)
-
-   for t in threads:
-     t.join()
-
-   duration = TimeUtils.getElapsedMilliseconds(startTime)
-
-   heartbeat(duration)
-   tracer.info("monitor payload successfully completed")
-   return
-=======
 
    pool = ThreadPoolExecutor(NUMBER_OF_THREADS)
    allChecks = []
@@ -278,6 +248,7 @@ def monitor(args: str) -> None:
          if os.path.exists(FILENAME_REFRESH):
             os.remove(FILENAME_REFRESH)
 
+      futures = []
       for check in allChecks:
          if check.getLockName() in ctx.checkLockSet:
             tracer.info("[%s] already queued/executing, skipping" % check.fullName)
@@ -291,9 +262,9 @@ def monitor(args: str) -> None:
          else:
             tracer.info("[%s] getting queued" % check.fullName)
             ctx.checkLockSet.add(check.getLockName())
-            pool.submit(runCheck, check)
+            futures.append(pool.submit(runCheck, check))
+      pool.submit(heartbeat, futures)
       sleep(CHECK_WAIT_IN_SECONDS)
->>>>>>> master
 
 # prepareUpdate will prepare the resources like keyvault, log analytics etc for the version passed as an argument
 # prepareUpdate needs to be run when a version upgrade requires specific update to the content of the resources
@@ -319,12 +290,16 @@ def ensureDirectoryStructure() -> None:
          sys.exit(ERROR_FILE_PERMISSION_DENIED)
    return
 
-def heartbeat(duration: int) -> None: 
+def heartbeat(futures) -> None: 
    global ctx
 
+   if len(futures) == 0:
+      return
+      
+   concurrent.futures.wait(futures)
+
    providerJson = {
-      "Count": len(ctx.instances),
-      "Duration": duration,
+      "Count": len(futures),
       "Providers": []
    }
          
@@ -337,7 +312,7 @@ def heartbeat(duration: int) -> None:
       }
 
       for check in i.checks:
-         if check.isEnabled() == True:
+         if check.isEnabled() == True and check.duration > 0:
             checks = provider.get("Checks", [])
             checkJson = {
                "Name": check.name,

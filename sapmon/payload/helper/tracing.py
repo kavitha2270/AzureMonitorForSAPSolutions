@@ -10,7 +10,6 @@ import logging
 import logging.config
 import traceback
 from typing import Callable, Dict, Optional
-import uuid
 
 # Payload modules
 from const import *
@@ -25,7 +24,6 @@ class JsonFormatter(logging.Formatter):
       logging.Formatter.__init__(self, None, datefmt)
       self.fieldMapping = fieldMapping
       self.customJson = customJson
-      self.runId = str(uuid.uuid4())
 
    # Overridden from the parent class to look for the asctime attribute in the fields attribute
    def usesTime(self) -> bool:
@@ -54,7 +52,6 @@ class JsonFormatter(logging.Formatter):
          for f in sorted(self.fieldMapping.keys()):
             jsonContent.append((f, getattr(record, self.fieldMapping[f])))
          jsonContent.append(("msg", formattedMsg))
-         jsonContent.append(("sapMonitorRunId", self.runId))
 
          if record.exc_info:
             jsonContent.append(("stackTrace", traceback.format_stack()))
