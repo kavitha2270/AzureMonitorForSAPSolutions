@@ -492,7 +492,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                 record['SID'] = ''
                 record['instanceNr'] = ''
 
-            record['clientId'] = self.sapClient
+            record['client'] = self.sapClient
             record['subdomain'] = self.sapSubdomain
             record['timestamp'] = currentTimestamp
 
@@ -650,7 +650,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             record['timestamp'] = currentTimestamp
             record['serverTimestamp'] = queryWindowEnd
             record['SID'] = self.sapSid
-            record['clientId'] = self.sapClient
+            record['client'] = self.sapClient
 
     """
     make RFC call GET_DUMP_LOG and return result records
@@ -767,6 +767,6 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                 record['SID'] = ''
                 record['instanceNr'] = ''
 
-            record['clientId'] = self.sapClient
+            record['client'] = self.sapClient
             record['subdomain'] = self.sapSubdomain
             record['timestamp'] = currentTimestamp
