@@ -113,7 +113,9 @@ class AzureKeyVault:
                     secretName: str) -> bool:
       self.tracer.info("deleting KeyVault secret %s" % secretName)
       try:
-         self.kv_client.begin_delete_secret(secretName)
+         poller = self.kv_client.begin_delete_secret(secretName)
+         poller.wait()
+         self.kv_client.purge_deleted_secret(secretName)
       except Exception as e:
          self.tracer.critical("could not delete KeyVault secret (%s)" % e)
          return False
