@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 import json
 import os
 import re
@@ -210,6 +210,8 @@ def monitor(args: str) -> None:
    pool = ThreadPoolExecutor(NUMBER_OF_THREADS)
    allChecks = []
 
+   pool.submit(heartbeat)
+
    while True:
       now = datetime.now()
       secondsSinceRefresh = (now-ctx.lastConfigRefreshTime).total_seconds()
@@ -248,7 +250,6 @@ def monitor(args: str) -> None:
          if os.path.exists(FILENAME_REFRESH):
             os.remove(FILENAME_REFRESH)
 
-      futures = []
       for check in allChecks:
          if check.getLockName() in ctx.checkLockSet:
             tracer.info("[%s] already queued/executing, skipping" % check.fullName)
@@ -262,8 +263,7 @@ def monitor(args: str) -> None:
          else:
             tracer.info("[%s] getting queued" % check.fullName)
             ctx.checkLockSet.add(check.getLockName())
-            futures.append(pool.submit(runCheck, check))
-      pool.submit(heartbeat, futures)
+            pool.submit(runCheck, check)
       sleep(CHECK_WAIT_IN_SECONDS)
 
 # prepareUpdate will prepare the resources like keyvault, log analytics etc for the version passed as an argument
@@ -290,42 +290,52 @@ def ensureDirectoryStructure() -> None:
          sys.exit(ERROR_FILE_PERMISSION_DENIED)
    return
 
-def heartbeat(futures) -> None: 
-   global ctx
+def heartbeat() -> None: 
+   global ctx      
 
-   if len(futures) == 0:
-      return
-      
-   concurrent.futures.wait(futures)
-
-   providerJson = {
-      "Count": len(futures),
-      "Providers": []
-   }
-         
-   for i in ctx.instances:
-      pi = providerJson.get("Providers", [])
-      
-      provider = {
-         "Name": i.name,
-         "Checks": []
+   while True:
+      providerJson = {
+         "Count": 0,
+         "Providers": []
       }
+         
+      for i in ctx.instances:
+         pi = providerJson.get("Providers", [])
+         
+         provider = {
+            "Name": i.name,
+            "Checks": []
+         }         
 
-      for check in i.checks:
-         if check.isEnabled() == True and check.duration > 0:
-            checks = provider.get("Checks", [])
-            checkJson = {
-               "Name": check.name,
-               "Duration": check.duration,
-               "Success": check.success,
-               "Message": check.checkMessage
-            }
-            checks.append(checkJson)
-            provider.update({"Checks":checks})
-      pi.append(provider)
-      providerJson.update({"Providers":pi})
-                     
-   tracer.info(json.dumps(providerJson))
+         for check in i.checks:
+            if check.getLockName() in ctx.checkLockSet:
+               continue
+            
+            lastRunLocal = check.state.get("lastRunLocal", None)
+            if lastRunLocal:
+               utcTime = datetime.utcnow()
+               if lastRunLocal.tzinfo:
+                  utcTime = datetime.now(timezone.utc)
+               if (lastRunLocal >= utcTime - timedelta(seconds = HEARTBEAT_WAIT_IN_SECONDS)):
+                  checks = provider.get("Checks", [])
+                  checkJson = {
+                     "Name": check.name,
+                     "Duration": check.duration,
+                     "LastRun": '{:%m/%d/%y %H:%M %S}'.format(lastRunLocal),
+                     "Success": check.success,
+                     "Message": check.checkMessage
+                  }
+                  checks.append(checkJson)
+                  provider.update({"Checks":checks})
+
+         checkCount = provider.get("Checks", [])
+         if (len(checkCount) > 0):
+            pi.append(provider)
+            providerJson.update({"Providers":pi})
+            providerJson.update({"Count": len(pi)})
+            tracer.info(json.dumps(providerJson))
+            
+      sleep(HEARTBEAT_WAIT_IN_SECONDS)
 
 # Main function with argument parser
 def main() -> None:
