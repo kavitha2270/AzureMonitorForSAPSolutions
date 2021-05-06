@@ -10,14 +10,17 @@
 from abc import ABC, abstractmethod
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+import concurrent.futures
+from datetime import date, datetime, timedelta, timezone
 import json
 import os
 import re
 import sys
 import threading
-from time import sleep
+from time import sleep, time
 import traceback
+from typing import Dict
+
 
 # Payload modules
 from const import *
@@ -207,6 +210,8 @@ def monitor(args: str) -> None:
    pool = ThreadPoolExecutor(NUMBER_OF_THREADS)
    allChecks = []
 
+   pool.submit(heartbeat)
+
    while True:
       now = datetime.now()
       secondsSinceRefresh = (now-ctx.lastConfigRefreshTime).total_seconds()
@@ -284,6 +289,53 @@ def ensureDirectoryStructure() -> None:
                                                                                                      e))
          sys.exit(ERROR_FILE_PERMISSION_DENIED)
    return
+
+def heartbeat() -> None: 
+   global ctx      
+
+   while True:
+      providerJson = {
+         "Count": 0,
+         "Providers": []
+      }
+         
+      for i in ctx.instances:
+         pi = providerJson.get("Providers", [])
+         
+         provider = {
+            "Name": i.name,
+            "Checks": []
+         }         
+
+         for check in i.checks:
+            if check.getLockName() in ctx.checkLockSet:
+               continue
+            
+            lastRunLocal = check.state.get("lastRunLocal", None)
+            if lastRunLocal:
+               utcTime = datetime.utcnow()
+               if lastRunLocal.tzinfo:
+                  utcTime = datetime.now(timezone.utc)
+               if (lastRunLocal >= utcTime - timedelta(seconds = HEARTBEAT_WAIT_IN_SECONDS)):
+                  checks = provider.get("Checks", [])
+                  checkJson = {
+                     "Name": check.name,
+                     "Duration": check.duration,
+                     "LastRun": '{:%m/%d/%y %H:%M %S}'.format(lastRunLocal),
+                     "Success": check.success,
+                     "Message": check.checkMessage
+                  }
+                  checks.append(checkJson)
+                  provider.update({"Checks":checks})
+
+         checkCount = provider.get("Checks", [])
+         if (len(checkCount) > 0):
+            pi.append(provider)
+            providerJson.update({"Providers":pi})
+            providerJson.update({"Count": len(pi)})
+            tracer.info(json.dumps(providerJson))
+            
+      sleep(HEARTBEAT_WAIT_IN_SECONDS)
 
 # Main function with argument parser
 def main() -> None:

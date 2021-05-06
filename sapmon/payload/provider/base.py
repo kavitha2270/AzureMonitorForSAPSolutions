@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 from retry.api import retry_call
+from time import time
 from typing import Callable, Dict, List, Optional
 
 # Payload modules
@@ -207,6 +208,9 @@ class ProviderCheck(ABC):
       }
       self.fullName = "%s.%s" % (self.providerInstance.fullName, self.name)
       self.tracer = providerInstance.tracer
+      self.duration = 0
+      self.success = False
+      self.checkMessage = None
 
    # Return check name for locking
    def getLockName(self) -> str:
@@ -243,27 +247,36 @@ class ProviderCheck(ABC):
 
    # Method that gets called when this check is executed
    # Returns a JSON-formatted string that can be ingested into Log Analytics
-   def run(self) -> str:
-      self.tracer.info("[%s] executing all actions of check" % self.fullName)
-      self.tracer.debug("[%s] actions=%s" % (self.fullName,
-                                             self.actions))
-      for action in self.actions:
-         methodName = METHODNAME_ACTION % action["type"]
-         parameters = action.get("parameters", {})
-         self.tracer.debug("[%s] calling action %s" % (self.fullName,
-                                                       methodName))
-         method = getattr(self, methodName)
-         tries = action.get("retries", self.providerInstance.retrySettings["retries"])
-         delay = action.get("delayInSeconds", self.providerInstance.retrySettings["delayInSeconds"])
-         backoff = action.get("backoffMultiplier", self.providerInstance.retrySettings["backoffMultiplier"])
+   def run(self) -> str:      
+      startTime = time()
+      try:
+         self.duration = 0
+         self.success = False
+         self.tracer.info("[%s] executing all actions of check" % self.fullName)
+         self.tracer.debug("[%s] actions=%s" % (self.fullName,
+                                                self.actions))
+         for action in self.actions:
+            methodName = METHODNAME_ACTION % action["type"]
+            parameters = action.get("parameters", {})
+            self.tracer.debug("[%s] calling action %s" % (self.fullName,
+                                                         methodName))
+            method = getattr(self, methodName)
+            tries = action.get("retries", self.providerInstance.retrySettings["retries"])
+            delay = action.get("delayInSeconds", self.providerInstance.retrySettings["delayInSeconds"])
+            backoff = action.get("backoffMultiplier", self.providerInstance.retrySettings["backoffMultiplier"])
 
-         try :
-            retry_call(method, fkwargs=parameters, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
-         except Exception as e:
-            self.tracer.error("[%s] error executing action %s, Exception %s, skipping remaining actions" % (self.fullName,
-                                                                                                            methodName,
-                                                                                                            e))
-            break
+            try :
+               retry_call(method, fkwargs=parameters, tries=tries, delay=delay, backoff=backoff, logger=self.tracer)
+               self.success = True
+            except Exception as e:
+               self.tracer.error("[%s] error executing action %s, Exception %s, skipping remaining actions" % (self.fullName,
+                                                                                                               methodName,
+                                                                                                               e))
+               self.checkMessage = str(e)
+               break
+      finally:
+         self.duration = TimeUtils.getElapsedMilliseconds(startTime)      
+
       return self.generateJsonString()
 
    # Method to generate a JSON object that can be ingested into Log Analytics
