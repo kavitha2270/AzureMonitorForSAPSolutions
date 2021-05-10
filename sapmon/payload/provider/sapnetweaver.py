@@ -36,6 +36,9 @@ MINIMUM_RFC_INSTALL_RETRY_INTERVAL = timedelta(minutes=30)
 # timeout to use for all SOAP WSDL fetch and other API calls
 SOAP_API_TIMEOUT_SECS = 5
 
+# soap client cache expiration, after which amount of time both successful + failed soap client instantiation attempts will be refreshed
+SOAP_CLIENT_CACHE_EXPIRATIION = timedelta(minutes=10)
+
 class sapNetweaverProviderInstance(ProviderInstance):
     # static / class variables to enforce singleton behavior around rfc sdk installation attempts across all 
     # instances of SAP Netweaver provider
@@ -220,32 +223,34 @@ class sapNetweaverProviderInstance(ProviderInstance):
         url = '%s://%s:%s/?wsdl' % (httpProtocol, hostname, port)
 
         if (useCache and url in self._soapClientCache):
-            soapClient = self._soapClientCache[url]
-            if (soapClient):
-                # self.tracer.debug("%s using cached SOAP client for wsdl: %s", self.logTag, url)
-                return soapClient
-            else:
-                raise Exception("%s cached SOAP client failure for wsdl: %s" % (self.logTag, url))
+            cacheEntry = self._soapClientCache[url]
+            # respect cache expiration;  if cache is expired allow client to be refreshed below
+            if (cacheEntry['expirationDateTime'] > datetime.utcnow()):
+                if (cacheEntry['client']):
+                    # self.tracer.info("%s using cached SOAP client for wsdl: %s", self.logTag, url)
+                    return cacheEntry['client']
+                else:
+                    # previously cached soap client attempt was failure 
+                    raise Exception("%s cached SOAP client failure for wsdl: %s" % (self.logTag, url))
 
         self.tracer.info("%s connecting to wsdl url: %s", self.logTag, url)
 
         startTime = time()
+        client = None
         try:
             session = Session()
             session.verify = False
             client = Client(url, transport=Transport(session=session, timeout=SOAP_API_TIMEOUT_SECS, operation_timeout=SOAP_API_TIMEOUT_SECS))
             self.tracer.info("%s initialized SOAP client url: %s [%d ms]",
                              self.logTag, url, TimeUtils.getElapsedMilliseconds(startTime))
-
-            # cache this successful client for future API calls
-            self._soapClientCache[url] = client
             return client
         except Exception as e:
-            # cache this failed client so we don't retry on future API calls
-            self._soapClientCache[url] = None
             self.tracer.error("%s error fetching wsdl url: %s: %s [%d ms]",
                               self.logTag, url, e, TimeUtils.getElapsedMilliseconds(startTime), exc_info=True)
             raise e
+        finally:
+            # cache successsful and failed soap client attempts to reduce future API calls
+            self._soapClientCache[url] = { 'client': client, 'expirationDateTime': datetime.utcnow() + SOAP_CLIENT_CACHE_EXPIRATIION }
 
     def callSoapApi(self, client: Client, apiName: str) -> str:
         self.tracer.info("%s executing SOAP API: %s for wsdl: %s", self.logTag, apiName, client.wsdl.location)
