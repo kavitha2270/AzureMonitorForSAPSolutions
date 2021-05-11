@@ -40,6 +40,25 @@ class AzureInstanceMetadataService:
                               params = params,
                               headers = headers)
 
+   # return expected resource ID of the sapmon Managed Service Identity
+   @staticmethod
+   def getSapmonMsiResourceId(subscriptionId: str, 
+                              resourceGroupName: str, 
+                              sapmonId: str) -> str:
+      # /subscriptions/{subscriptionId}/resourceGroups/sapmon-rg-{sapmonId}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/sapmon-msi-{sapmonId}
+
+      if (not subscriptionId):
+         raise "cannot create sapmon MSI resourceId with empty subscriptionId"
+      if (not resourceGroupName):
+         raise "cannot create sapmon MSI resourceId with empty resourceGroupName"
+      if (not sapmonId):
+         raise "cannot create sapmon MSI resourceId with empty sapmonId"
+
+      return "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/sapmon-msi-%s" % \
+              (subscriptionId,
+              resourceGroupName,
+              sapmonId)
+
    # Call IMDS to get the compute instance of the collector VM
    @staticmethod
    def getComputeInstance(tracer: logging.Logger,
@@ -60,15 +79,23 @@ class AzureInstanceMetadataService:
    @staticmethod
    def getAuthToken(tracer: logging.Logger,
                     resource: Optional[str] = None,
-                    msiClientId: Optional[str] = None) -> Tuple[str, str]:
+                    msiClientId: Optional[str] = None,
+                    msiResourceId: Optional[str] = None) -> Tuple[str, str]:
       tracer.info("getting auth token for resource=%s%s" % (resource, ", msiClientId=%s" % msiClientId if msiClientId else ""))
       authToken = None
       if not resource:
          resource = AzureInstanceMetadataService.resource
+
+      requestParams = {"resource": resource}
+      if (msiResourceId):
+         requestParams['mi_res_id'] = msiResourceId
+      if (msiClientId):
+         requestParams['client_id'] = msiClientId
+
       try:
          result = AzureInstanceMetadataService._sendRequest(tracer,
                                                             "identity/oauth2/token",
-                                                            params = {"resource": resource, "client_id": msiClientId})
+                                                            params=requestParams)
          authToken, msiClientId = result["access_token"], result["client_id"]
       except Exception as e:
          tracer.critical("could not get auth token (%s)" % e)

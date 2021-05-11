@@ -42,13 +42,32 @@ class Context(object):
       if not vmName:
          self.tracer.critical("could not obtain VM name from IMDS")
          sys.exit(ERROR_GETTING_SAPMONID)
+
+      self.sapmonSubscriptionId = self.vmInstance.get("subscriptionId", None)
+      if not self.sapmonSubscriptionId:
+         self.tracer.critical("could not obtain sapmon Azure SubscriptionId for collector VM")
+         sys.exit(ERROR_GETTING_SAPMONID)
+
+      self.sapmonResourceGroupName = self.vmInstance.get("resourceGroupName", None)
+      if not self.sapmonResourceGroupName:
+         self.tracer.critical("could not obtain sapmon Azure Resource Group Name for collector VM")
+         sys.exit(ERROR_GETTING_SAPMONID)
+
       try:
          self.sapmonId = re.search("sapmon-vm-(.*)", vmName).group(1)
       except AttributeError:
          self.tracer.critical("could not extract sapmonId from VM name")
          sys.exit(ERROR_GETTING_SAPMONID)
 
-      self.authToken, self.msiClientId = AzureInstanceMetadataService.getAuthToken(self.tracer)
+      # get azure resource ID for expected sapmon Managed Identity "sapmon-msi-XXXXX"
+      self.msiResourceId = AzureInstanceMetadataService.getSapmonMsiResourceId(
+         self.sapmonSubscriptionId,
+         self.sapmonResourceGroupName,
+         self.sapmonId)
+
+      # specify the exact "sapmon-msi-XXXXX" managed identity to use
+      # just in case this VM has multiple Managed Identities assigned to it
+      self.authToken, self.msiClientId = AzureInstanceMetadataService.getAuthToken(self.tracer, msiResourceId=self.msiResourceId)
 
       self.tracer.debug("sapmonId=%s" % self.sapmonId)
       self.tracer.debug("msiClientId=%s" % self.msiClientId)
