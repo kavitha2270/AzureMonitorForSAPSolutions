@@ -286,7 +286,6 @@ class sapNetweaverProviderInstance(ProviderInstance):
                                                    sapSid=self.sapSid,
                                                    sapClient=str(self.sapClientId),
                                                    sapLogonGroup = self.sapLogonGroup,
-                                                   #sapLogonGroup = "Technical",
                                                    sapUsername=self.sapUsername,
                                                    sapPassword=self.sapPassword)
 

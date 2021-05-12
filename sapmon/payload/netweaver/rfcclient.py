@@ -259,7 +259,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         else:
             return self.sapHostName
     """
-    establish rfc  connection to sap.
+    establish rfc message server connection to sap.
     """
     def _getMessageServerConnection(self) -> Connection:
         try:
