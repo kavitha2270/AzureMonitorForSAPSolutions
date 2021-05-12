@@ -77,6 +77,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                  columnFilterList: List[str],
                  serverTimeZone: tzinfo,
                  sapSid: str,
+                 sapLogonGroup: str,
                  **kwargs) -> None:
         self.tracer = tracer
         self.logTag = logTag
@@ -89,7 +90,9 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
         self.sapUsername = sapUsername
         self.sapPassword = sapPassword
         self.columnFilterList = columnFilterList
-        self.tzinfo = serverTimeZone
+        self.tzinfo = serverTimeZone 
+        self.sapLogonGroup = sapLogonGroup
+        self.msserv = "36%s" % self.sapSysNr
 
         super().__init__(tracer, logTag)
 
@@ -175,7 +178,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
     """
     def getServerTime(self) -> datetime:
         self.tracer.info("executing RFC to get SAP server time")
-        with self._getConnection() as connection:
+        with self._getMessageServerConnection() as connection:
             # read current time from SAP NetWeaver.
             timestampResult = self._rfcGetSystemTime(connection)
             systemDateTime = self._parseSystemTimeResult(timestampResult)
@@ -192,7 +195,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                        endDateTime: datetime) -> str:
         self.tracer.info("executing RFC SDF/SMON_ANALYSIS_RUN check")
         
-        with self._getConnection() as connection:
+        with self._getMessageServerConnection() as connection:
             # get guid to call RFC SDF/SMON_ANALYSIS_READ.
             guidResult = self._rfcGetSmonRunIds(connection, startDateTime=startDateTime, endDateTime=endDateTime)
             guid = self._parseSmonRunIdsResult(guidResult)
@@ -214,7 +217,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                                startDateTime: datetime,
                                endDateTime: datetime) -> str:
         self.tracer.info("executing RFC SWNC_GET_WORKLOAD_SNAPSHOT check")
-        with self._getConnection() as connection:
+        with self._getMessageServerConnection() as connection:
             snapshotResult = self._rfcGetSwncWorkloadSnapshot(connection,
                                                               startDateTime=startDateTime, 
                                                               endDateTime=endDateTime)
@@ -234,7 +237,7 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
                        endDateTime: datetime) -> str:
         self.tracer.info("executing RFC SDF/GET_DUMP_LOG check")
         parsedResult = None
-        with self._getConnection() as connection:
+        with self._getMessageServerConnection() as connection:
             # get guid to call RFC SDF/GET_DUMP_LOG.
             rawResult = self._rfcGetDumpLog(connection, startDateTime=startDateTime, endDateTime=endDateTime)
             if (rawResult != None) :
@@ -255,11 +258,41 @@ class NetWeaverRfcClient(NetWeaverMetricClient):
             return self.sapHostName + "." + self.sapSubdomain
         else:
             return self.sapHostName
+    """
+    establish rfc  connection to sap.
+    """
+    def _getMessageServerConnection(self) -> Connection:
+        try:
+            # Direct application server logon:  ashost, sysnr
+            # load balancing logon:  mshost, msserv, sysid, group
+            connection = Connection(#ashost=self.fqdn, 
+                                    sysnr=self.sapSysNr, 
+                                     mshost = self.fqdn,
+                                    #Group = self.sapLogonGroup,
+                                    Group = "Technical",
+                                    msserv = self.msserv,
+                                    ssid = self.sapSid,
+                                    client=self.sapClient, 
+                                    user=self.sapUsername, 
+                                    passwd=self.sapPassword)
+            return connection
+        except CommunicationError as e:
+            #self.tracer.error("[%s] error establishing connection with hostname: %s, sapSysNr: %s, error: %s",
+            #                  self.logTag, self.fqdn, self.sapSysNr, e)
+            raise
+        except LogonError as e:
+            #self.tracer.error("[%s] Incorrect credentials used to connect with hostname: %s username: %s, error: %s",
+            #                  self.logTag, self.fqdn, self.sapUsername, e)
+            raise
+        except Exception as e:
+            #self.tracer.error("[%s] Error occured while establishing connection to hostname: %s, sapSysNr: %s, error: %s ",
+            #                  self.logTag, self.fqdn, self.sapSysNr, e)
+            raise
 
     """
     establish rfc  connection to sap.
     """
-    def _getConnection(self) -> Connection:
+    def _getApplicationServerConnection(self) -> Connection:
         try:
             # Direct application server logon:  ashost, sysnr
             # load balancing logon:  mshost, msserv, sysid, group
